@@ -143,7 +143,7 @@ deployment):
 | Median time per proposal | 6.4 s |
 
 **Ten generated months** (https://github.com/4KInc/closebook/blob/main/src/generate.mjs, seeds 101–110 in
-https://github.com/4KInc/closebook/blob/main/eval/seeds.json: five shops, 8 to 45 sales each, 3 to 7 planted mistakes of
+https://github.com/4KInc/closebook/blob/main/eval/seeds.json — five shops, 8 to 45 sales each, 3 to 7 planted mistakes of
 eight kinds, 72 exceptions for the AI in all). Measured on 11 November 2026, one run per model,
 called directly with the API key:
 
