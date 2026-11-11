@@ -110,3 +110,19 @@ test('generated months: the same seed gives the same month, every planted mistak
     assert.equal(close.exceptions.reduce((a, e) => a + e.gap, 0), summary(close).difference, `seed ${seed}`);
   }
 });
+
+test('hard months: reproducible, every planted case stays open, no hint for the late transposition, gaps add up', async () => {
+  const { hardMonth } = await import('../src/generate.mjs');
+  const { paypalRows, ledgerRows } = await import('../src/normalize.mjs');
+  for (let seed = 201; seed <= 210; seed++) {
+    const g = hardMonth(seed);
+    assert.deepEqual(hardMonth(seed), g);
+    const close = openClose({ paypal: paypalRows(g.transaction_details), ledger: ledgerRows(g.ledgerCsv), period: g.period });
+    const open = new Set(close.exceptions.flatMap((e) => [...e.paypal, ...e.ledger]));
+    for (const p of g.planted) assert.ok(open.has(p.paypal) || open.has(p.ledger), `seed ${seed}: ${p.hard} was matched`);
+    const late = g.planted.filter((p) => p.hard?.startsWith('transposed')).map((p) => `X-${p.paypal ?? p.ledger}`);
+    assert.ok(close.exceptions.filter((e) => late.includes(e.id)).every((e) => !e.hints.length), `seed ${seed}: the late transposition must get no hint`);
+    assert.equal(close.foreign.length, 2, 'the EUR sale and its EUR conversion leg stay out of the USD tie-out');
+    assert.equal(close.exceptions.reduce((a, e) => a + e.gap, 0), summary(close).difference);
+  }
+});

@@ -1,4 +1,27 @@
 {
-  "note": "Seeds for the generated months in src/generate.mjs. Same seed, same month: shop, size, mistakes and answer key.",
-  "seeds": [101, 102, 103, 104, 105, 106, 107, 108, 109, 110]
+  "note": "Seeds for src/generate.mjs: 'seeds' for generatedMonth (ordinary months), 'hard' for hardMonth (cases built to make the AI fail). Same seed, same month.",
+  "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110
+  ],
+  "hard": [
+    201,
+    202,
+    203,
+    204,
+    205,
+    206,
+    207,
+    208,
+    209,
+    210
+  ]
 }
