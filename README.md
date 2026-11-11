@@ -10,10 +10,12 @@ approve it**, and the person can correct it in place.
 > [closebook-uju5.onrender.com](https://closebook-uju5.onrender.com).
 >
 > 1. **Close November from PayPal**: a test shop's real PayPal sandbox account, read live
->    (Transaction Search and the Balances API), against
+>    (Transaction Search, the Balances API and the Disputes API), against
 >    [its four-line books](samples/sandbox-2026-11-books.csv). Under the three tiles the screen
 >    says the PayPal balance went from $5,000.00 to $5,038.82, *✓ every PayPal payment is
->    accounted for*. Click **Suggest fixes**, then approve: −$120.68 becomes **$0.00**.
+>    accounted for*. The $72.50 *Serving platter* sale carries a real buyer dispute we opened in the
+>    sandbox ([below](#closed-against-a-real-paypal-sandbox-account)). Click **Suggest fixes**,
+>    then approve: −$120.68 becomes **$0.00**.
 > 2. **Open the demo month**: a ceramics shop's October with planted mistakes, including a
 >    chargeback with its dispute (built in the Disputes API's shape) and two lines of text written
 >    to steer the AI. **Suggest fixes**: standard fixes for the 23 missing PayPal fees, and an AI
@@ -135,6 +137,31 @@ they appeared, the live site closed the six payout rows from −$90.50 to $0.00 
 earlier local run Claude put the unbooked payout in 3999 Suspense instead of 5100: both pass the
 checks, because the account is a judgement the checks cannot make. That is what the reviewer's
 approval is for.
+
+**A real buyer dispute.** On 11 November 2026 we opened a dispute ourselves, as the sandbox buyer,
+on the $72.50 sale (`5SY66963X4673292W`), for this test: "Report a problem" → the item hasn't
+reached me. closebook's own client read it back through the Disputes API (`GET
+/v1/customer/disputes?disputed_transaction_id=5SY66963X4673292W`, read-only) at 18:30 UTC, about
+five minutes after it was opened:
+
+| | As PayPal returned it |
+|---|---|
+| Dispute | `PP-R-FVS-10199012`, opened 2026-11-11 18:24:49 UTC |
+| Reason | `MERCHANDISE_OR_SERVICE_NOT_RECEIVED` |
+| Status | `WAITING_FOR_SELLER_RESPONSE` |
+| Stage | `INQUIRY` |
+| Amount | $72.50 USD |
+
+The November close now shows it on that sale's fix panel: *Buyer dispute · buyer says the item
+never arrived · waiting for you · at the inquiry stage*, and Claude sees it in its prompt. The
+response, scrubbed of the buyer's payer ID and the merchant ID, is a test fixture
+([`test/fixtures/sandbox-dispute-2026-11.json`](test/fixtures/sandbox-dispute-2026-11.json)). An
+inquiry moves no money, so it changes no amounts: the month still opens at −$120.68 and closes to
+$0.00, and PayPal's balance still matches every payment read.
+<!-- hold:start -->
+Whether PayPal places a hold on the disputed amount (which Transaction Search can take up to three
+hours to show) is being checked every 15 minutes until 4:30 pm Central on 11 November.
+<!-- hold:end -->
 
 ## How accurate is the AI
 

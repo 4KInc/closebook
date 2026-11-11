@@ -66,6 +66,10 @@ arithmetic; a person signs off on what only a person can judge.
 ### Technological Implementation
 - Three PayPal APIs, two through the APIMatic-generated Server SDK, with paging, window
   splitting, retries and clear 401/403 messages; tested against a fake PayPal.
+- All three exercised live: a buyer dispute we opened ourselves in the sandbox
+  (`PP-R-FVS-10199012`, item not received, inquiry stage) was read back through the Disputes API
+  and shows on the sale's fix panel; the scrubbed response is a test fixture
+  (https://github.com/4KInc/closebook/blob/main/test/fixtures/sandbox-dispute-2026-11.json).
 - Claude with structured outputs, a check-and-retry loop, server-side refusal fallbacks, and a
   recorded-proposal fallback when live calls are unavailable (no key, a cap, a failed call),
   labelled on screen and checked live.
