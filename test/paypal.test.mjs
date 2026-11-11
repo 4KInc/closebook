@@ -100,3 +100,26 @@ test('disputes are looked up once per disputed transaction, with one token, and 
   assert.deepEqual(calls.filter((c) => c.includes('disputes')).map((c) => c.split('disputed_transaction_id=')[1].split('&')[0]), ['SALE1', 'SALE1', 'SALE2']);
   assert.deepEqual(await fetchDisputes([], ENV, { fetch: () => assert.fail('no call for no ids') }), {});
 });
+
+test('a real sandbox Disputes API response parses into the same shape as the demo dispute, and the voucher shows it', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { disputeRows, paypalRows } = await import('../src/normalize.mjs');
+  const { voucherHtml } = await import('../public/view.mjs');
+  const { openClose } = await import('../src/close.mjs');
+  const { demoMonth } = await import('../src/demo.mjs');
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/sandbox-dispute-2026-11.json', import.meta.url), 'utf8'));
+  const SALE = '5SY66963X4673292W';
+  // Through the real client: one token, one lookup by disputed_transaction_id, PayPal's own page.
+  const fetch = async (url) => ({ ok: true, status: 200, headers: [], text: async () => JSON.stringify(url.endsWith('/oauth2/token') ? { access_token: 't' } : fixture.response) });
+  const raw = await fetchDisputes([SALE], ENV, { fetch, ...quiet });
+  const [real] = disputeRows(raw)[SALE];
+  assert.deepEqual(real, { id: 'PP-R-FVS-10199012', reason: 'MERCHANDISE_OR_SERVICE_NOT_RECEIVED', status: 'WAITING_FOR_SELLER_RESPONSE', stage: 'INQUIRY', outcome: null, amount: 7250, opened: '2026-11-11' });
+  // The same keys as the demo month's dispute, which is built in the Disputes API's shape.
+  const [demo] = Object.values(disputeRows(demoMonth().disputes))[0];
+  assert.deepEqual(Object.keys(real).sort(), Object.keys(demo).sort());
+  // In the voucher: the sale, with the dispute's reason, status and stage in words.
+  const sale = { transaction_info: { transaction_id: SALE, transaction_event_code: 'T0006', transaction_initiation_date: '2026-11-11T06:59:27Z', transaction_amount: { currency_code: 'USD', value: '72.50' }, fee_amount: { currency_code: 'USD', value: '-3.02' }, transaction_subject: 'Serving platter' } };
+  const close = openClose({ paypal: paypalRows([sale]), ledger: [], period: '2026-11', disputes: disputeRows(raw) });
+  const html = voucherHtml({ ...close, config: { categories: {} } }, close.exceptions[0]);
+  assert.match(html, /Buyer dispute · buyer says the item never arrived · waiting for you · at the inquiry stage/);
+});
