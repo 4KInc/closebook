@@ -28,10 +28,9 @@ hosting: the first visit after a quiet spell can take a minute to wake the serve
 
 **State:** 29 tests, including property tests over thousands of generated entries and months. The
 demo month opens with a difference of **−$897.44**; rule fixes bring it to −$825.15, and a correct
-entry for each remaining exception brings it to **$0.00** (tested). Reading a real sandbox month is
-written against the Transaction Search API, and its paging, retries and error messages are tested
-against a fake PayPal; it has not yet been run end to end against a sandbox app with the
-Transaction search permission.
+entry for each remaining exception brings it to **$0.00** (tested). On 11 November 2026 the live
+site closed a real PayPal sandbox month, read through Transaction Search, to $0.00
+([below](#closed-against-a-real-paypal-sandbox-account)).
 
 ## Why Claude proposes and code decides
 
@@ -68,6 +67,31 @@ what PayPal did. PayPal's numbers rarely match the books on the first try:
 
 Each one is easy once found. Finding them among hundreds of lines, and writing an entry that is
 right to the cent, is what takes the hours.
+
+## Closed against a real PayPal sandbox account
+
+closebook has its own sandbox REST app with the **Transaction search** permission. Its business
+account is a payouts account, so its November 2026 activity is two Payouts (T0001, $90.00 plus a
+$0.25 fee each) and, for each, the hold PayPal placed and released around it (T1503, T1105).
+
+On 11 November 2026, on the live site, we closed that month against a one-line books file in which
+the first payout was booked at $90.00 without its fee and nothing else was booked:
+
+| Exception | Proposed by | Entry | Checks |
+|---|---|---|---|
+| Payout booked without its $0.25 fee | rule | Dr 6100 $0.25, Cr 1010 $0.25 | pass |
+| Hold and release, 2 November | Claude | Dr 1210, Cr 1010 $90.25; Dr 1010, Cr 1210 $90.25 (settles both) | pass |
+| Hold and release, 7 November | Claude | the same, for the second pair | pass |
+| Second payout, not booked | Claude | Dr 5100 $90.00, Dr 6100 $0.25, Cr 1010 $90.25 | pass |
+
+Six exceptions, four entries approved (two of them settled a hold and its release together), and
+the difference went from −$90.50 to **$0.00**. The same close run on a local server an hour earlier
+had Claude put the unbooked payout in 3999 Suspense instead of 5100: both pass the checks, because
+the account is a judgement the checks cannot make. That is what the reviewer's approval is for.
+
+Three sandbox sales and a partial refund made on the same account on 11 November had not yet
+reached Transaction Search at the time of writing; PayPal says new transactions can take up to
+three hours to appear.
 
 ## Walk through the demo month
 
