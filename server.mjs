@@ -17,6 +17,7 @@ import { openClose, disputedIds, ruleFix, propose, approve, reject, edit, summar
 import { proposeWithClaude, MODEL } from './src/claude.mjs';
 import { fetchMonth, fetchBalances, fetchDisputes, paypalConfigured, probe, PayPalError } from './src/paypal.mjs';
 import { CATEGORIES } from './src/codes.mjs';
+import { loadRecording, recordedFix } from './src/recorded.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 // Run directly (`node server.mjs`), the server reads .env and listens. Imported (the tests), it
@@ -25,14 +26,15 @@ const MAIN = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1
 if (MAIN) { try { process.loadEnvFile(join(HERE, '.env')); } catch (e) { if (e.code !== 'ENOENT') console.warn(`[env] could not read .env: ${e.message}`); } }
 const PUBLIC = join(HERE, 'public');
 const PORT = Number(process.env.PORT ?? 8080);
-const CLAUDE_LIMIT = Number(process.env.CLAUDE_CALLS_PER_SESSION ?? 80);
-const CLAUDE_DAILY = Number(process.env.CLAUDE_CALLS_PER_DAY ?? 600);
+// Read on every request, so a deploy (or a test) can change them without a restart of the logic.
+const claudeLimit = () => Number(process.env.CLAUDE_CALLS_PER_SESSION ?? 80);
+const claudeDaily = () => Number(process.env.CLAUDE_CALLS_PER_DAY ?? 600);
 const MAX_SESSIONS = 2000;
 const daily = { day: '', calls: 0 };
 function takeDailyCall() {
   const today = new Date().toISOString().slice(0, 10);
   if (daily.day !== today) { daily.day = today; daily.calls = 0; }
-  if (daily.calls >= CLAUDE_DAILY) return false;
+  if (daily.calls >= claudeDaily()) return false;
   daily.calls++;
   return true;
 }
@@ -68,6 +70,10 @@ async function body(req, limit = 3_000_000) { // a 2 MB CSV, JSON-escaped, fits
   try { return text ? JSON.parse(text) : {}; } catch { throw Object.assign(new Error('the request body is not JSON'), { status: 400 }); }
 }
 
+// The recording for the month this session has open: the demo month, or closebook's own sandbox
+// account (one-click or uploaded books; a recorded proposal is used only for identical items).
+const recordingOf = (s) => (s.close && s.source ? loadRecording(s.source.kind === 'demo' ? 'demo' : 'paypal', s.close.period) : null);
+
 function view(s) {
   if (!s.close) return { close: null, config: config() };
   const c = s.close;
@@ -82,7 +88,9 @@ function view(s) {
     outside: c.outside ?? 0,
     exceptions: c.exceptions,
     decisions: c.decisions,
-    claudeCallsLeft: CLAUDE_LIMIT - s.claudeCalls,
+    claudeCallsLeft: claudeLimit() - s.claudeCalls,
+    recorded: Boolean(recordingOf(s)), // recorded Claude proposals exist for this month
+
   };
 }
 
@@ -100,7 +108,7 @@ const dollars = (c) => (c ? (c / 100).toFixed(2) : '');
 function journalCsv(close) {
   const rows = [['entry_id', 'entry_date', 'account', 'account_name', 'debit', 'credit', 'currency', 'memo', 'category', 'proposed_by', 'approved_by', 'approved_at', 'exception', 'also_settles', 'paypal_transaction_ids', 'book_line_ids']];
   journal(close).forEach((f, i) => {
-    for (const l of f.lines) rows.push([`JE-${close.period}-${String(i + 1).padStart(3, '0')}`, lastDay(close.period), l.account, close.chart[l.account], dollars(l.debit), dollars(l.credit), close.currency, f.memo, f.category, (f.by === 'claude' ? `claude (${f.model ?? ''})` : f.by) + (f.editedBy ? `, edited by ${f.editedBy}` : ''), f.approvedBy, f.approvedAt, f.exception, f.covers.join(' '), f.cites.paypal.join(' '), f.cites.ledger.join(' ')]);
+    for (const l of f.lines) rows.push([`JE-${close.period}-${String(i + 1).padStart(3, '0')}`, lastDay(close.period), l.account, close.chart[l.account], dollars(l.debit), dollars(l.credit), close.currency, f.memo, f.category, (f.by === 'claude' ? `claude (${f.model ?? ''})${f.recorded ? `, recorded ${f.recorded.at}` : ''}` : f.by) + (f.editedBy ? `, edited by ${f.editedBy}` : ''), f.approvedBy, f.approvedAt, f.exception, f.covers.join(' '), f.cites.paypal.join(' '), f.cites.ledger.join(' ')]);
   });
   return csv(rows);
 }
@@ -227,16 +235,30 @@ async function route(req, res) {
       if (ex.status !== 'open') return json(res, 200, { skipped: true, ...view(s) });
       const rule = ruleFix(c, ex);
       if (rule) { propose(c, ex.id, rule); return json(res, 200, view(s)); }
-      if (!claudeReady()) return json(res, 400, { error: 'ANTHROPIC_API_KEY is not set on this server, so only rule fixes are available' });
-      if (s.claudeCalls >= CLAUDE_LIMIT) return json(res, 429, { error: 'this session has used its AI proposals; reload the month to start over' });
-      if (!takeDailyCall()) return json(res, 429, { error: 'this server has used its AI proposals for today; rule fixes still work' });
-      s.claudeCalls++;
-      const r = await proposeWithClaude(c, ex);
+      // Live if possible; otherwise Claude's recorded proposal for this month, checked now like a
+      // live one; otherwise a plain answer that Claude is unavailable and rule fixes still work.
+      const unavailable = !claudeReady() ? 'no API key on this server'
+        : s.claudeCalls >= claudeLimit() ? 'this session has used its live AI proposals'
+          : !takeDailyCall() ? 'this server has used its live AI proposals for today' : null;
+      let live = null, failure = unavailable;
+      if (!unavailable) {
+        s.claudeCalls++;
+        try { live = await proposeWithClaude(c, ex); } catch (e) { console.warn(`[claude] ${ex.id}: ${e.message}`); failure = `the live call failed (${e.status ?? e.message})`; }
+      }
       if (ex.status !== 'open') return json(res, 200, { skipped: true, ...view(s) });
-      propose(c, ex.id, r.fix);
-      ex.attempts = r.attempts.length;
-      ex.firstFailures = r.attempts.length > 1 ? r.attempts[0].check.failures : null;
-      return json(res, 200, view(s));
+      if (live) {
+        propose(c, ex.id, live.fix);
+        ex.attempts = live.attempts.length;
+        ex.firstFailures = live.attempts.length > 1 ? live.attempts[0].check.failures : null;
+        return json(res, 200, view(s));
+      }
+      const rec = recordedFix(recordingOf(s), ex);
+      if (rec) {
+        propose(c, ex.id, { ...rec, recorded: { ...rec.recorded, why: failure } });
+        ex.attempts = null; ex.firstFailures = null;
+        return json(res, 200, { fallback: failure, ...view(s) });
+      }
+      return json(res, 503, { error: `Claude is unavailable (${failure}), and there is no recorded proposal for this exception. Rule fixes still work.` });
     }
     // A refused approval (checks fail, nothing proposed, already settled) is the reviewer's to fix: 409.
     if (action === 'approve') { try { approve(c, ex.id); } catch (e) { return json(res, 409, { error: e.message }); } return json(res, 200, view(s)); }

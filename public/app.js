@@ -62,7 +62,7 @@ function render() {
   }
   $('start').hidden = true; $('app').hidden = false;
   const s = state.summary;
-  $('source').innerHTML = [state.source.label, `${state.currency ?? 'USD'} · PayPal clearing 1010`, state.config.claude ? `AI: ${state.config.model}` : 'AI off: rules only'].map((t) => `<span>${esc(t)}</span>`).join('');
+  $('source').innerHTML = [state.source.label, `${state.currency ?? 'USD'} · PayPal clearing 1010`, state.config.claude ? `AI: ${state.config.model}` : state.recorded ? 'AI: recorded proposals' : 'AI off: rules only'].map((t) => `<span>${esc(t)}</span>`).join('');
   $('tPaypal').textContent = fmt(s.paypalNet);
   $('tBooks').textContent = fmt(s.books);
   countTo($('tDiff'), s.difference);
@@ -103,7 +103,7 @@ function columnsAndRows() {
       what: itemsLabel(state, e),
       kind: e.source === 'fee' ? 'fee gap' : e.source === 'paypal' ? 'only in PayPal' : 'only in books',
       category: e.fix ? state.config.categories[e.fix.category] ?? e.fix.category : '',
-      by: e.fix ? (e.fix.by === 'claude' ? 'AI' : 'rule') + (e.fix.original ? ' edited' : '') : '',
+      by: e.fix ? (e.fix.by === 'claude' ? 'AI' : 'rule') + (e.fix.recorded ? ' recorded' : '') + (e.fix.original ? ' edited' : '') : '',
       entry: e.fix ? e.fix.lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.account} ${fmt(l.debit || l.credit)}`).join(', ') : '',
       order: e.status === 'open' ? (e.fix ? (e.check.ok ? 1 : 0) : 2) : 3,
       // The cell shows a chip built from several fields; give it a value that changes with them
@@ -119,7 +119,7 @@ function columnsAndRows() {
         moneyCol('gap', 'Gap'),
         textCol('what', 'Items', { flex: 2, minWidth: 220, tooltipField: 'what', cellRenderer: (p) => (p.node.rowPinned ? esc(p.value) : itemsCellHtml(p.data, p.value)) }),
         textCol('category', 'Proposed fix', { flex: 1, minWidth: 170 }),
-        { field: 'by', headerName: 'By', width: 140, cellRenderer: (p) => (p.node.rowPinned ? '' : byBadge(p.data)), filter: 'agTextColumnFilter' },
+        { field: 'by', headerName: 'By', width: 196, cellRenderer: (p) => (p.node.rowPinned ? '' : byBadge(p.data)), filter: 'agTextColumnFilter' },
         textCol('entry', 'Entry', { flex: 1.4, minWidth: 220, tooltipField: 'entry', cellClass: 'mono' }),
       ],
     };
@@ -279,6 +279,7 @@ async function proposeOne(id) {
   try {
     const next = await api(`/api/exceptions/${encodeURIComponent(id)}/propose`, { post: true, body: {} });
     state = next;
+    if (next.fallback) setStatus(`Live AI calls are unavailable (${next.fallback}): showing Claude's recorded proposals, checked now.`);
   } catch (err) { e.pending = false; setStatus(`${id}: ${err.message}`); render(); return false; }
   render();
   return true;
@@ -291,14 +292,16 @@ $('proposeAll').addEventListener('click', async () => {
   const tried = new Set();
   const todo = () => state.exceptions.filter((e) => e.status === 'open' && !e.fix && !tried.has(e.id));
   let n = 0;
-  if (state.config.claude) {
+  if (state.config.claude || state.recorded) {
+    let fellBack = false;
     for (let next = todo()[0]; next; next = todo()[0]) {
-      n++; setStatus(`AI is proposing ${n} of ~${n + todo().length - 1}…`);
+      n++; if (!fellBack) setStatus(`AI is proposing ${n} of ~${n + todo().length - 1}…`);
       tried.add(next.id);
       const ok = await proposeOne(next.id);
       if (!ok) break;
+      fellBack ||= state.exceptions.some((e) => e.fix?.recorded);
     }
-    setStatus('Proposals done. Review each one and approve or reject.');
+    if (!fellBack) setStatus('Proposals done. Review each one and approve or reject.');
   } else setStatus('Rule fixes proposed. AI is off on this server, so the other exceptions need a manual fix.');
   busy = false; render();
 });

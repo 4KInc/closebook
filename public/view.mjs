@@ -18,7 +18,7 @@ export const statusChip = (e) => {
   if (!e.fix) return badge('plain', 'Exception');
   return e.check.ok ? badge('ready', 'Ready') : badge('bad', 'Fails checks');
 };
-export const byBadge = (e) => (!e.fix ? '' : (e.fix.by === 'claude' ? badge('claude', 'AI') : badge('rule', 'Rule')) + (e.fix.original ? ' ' + badge('warn', 'Edited') : ''));
+export const byBadge = (e) => (!e.fix ? '' : (e.fix.by === 'claude' ? badge('claude', 'AI') : badge('rule', 'Rule')) + (e.fix.recorded ? ' ' + badge('info', 'Recorded', 'Recorded Claude proposal (live calls unavailable)') : '') + (e.fix.original ? ' ' + badge('warn', 'Edited') : ''));
 
 export function itemsLabel(state, e) {
   const byP = new Map(state.paypal.map((t) => [t.id, t]));
@@ -62,6 +62,7 @@ export function voucherHtml(state, e, tab = 'exceptions') {
       const dr = f.lines.reduce((a, l) => a + (l.debit || 0), 0), cr = f.lines.reduce((a, l) => a + (l.credit || 0), 0);
       html += `<div class="v-sec"><span class="v-label">Entry${f.original ? ' · edited by the reviewer' : ''}</span><table class="entry"><thead><tr><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr></thead><tbody>${lines.map((l) => `<tr class="${l.debit ? 'dr' : 'cr'}"><td><span class="acct">${esc(l.account)}</span>${esc(state.chart[l.account] ?? 'not in chart')}</td><td class="n">${l.debit ? fmt(l.debit) : ''}</td><td class="n">${l.credit ? fmt(l.credit) : ''}</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td class="n"><span>${fmt(dr)}</span></td><td class="n"><span>${fmt(cr)}</span></td></tr></tfoot></table><div class="memo">Memo: ${esc(f.memo)}</div></div>`;
     }
+    if (f.recorded) html += `<div class="v-sec"><div class="recorded-box"><b>Recorded Claude proposal (live calls unavailable)</b><span>${esc(f.recorded.why ? `Live calls are unavailable here: ${f.recorded.why}.` : 'Live calls are unavailable here.')} This is what ${esc(f.recorded.model ?? 'Claude')} proposed for this exact exception in a recorded run on ${esc(String(f.recorded.at ?? '').slice(0, 10))}. The checks below ran now, on this close.</span></div></div>`;
     if (f.explanation) html += `<div class="v-sec"><span class="v-label">${f.by === 'claude' ? `Why · AI (${esc(f.model ?? '')})` : 'Why · rule'}</span><div class="note ${f.by === 'claude' ? '' : 'rule'}">${esc(f.explanation)}</div></div>`;
     const extra = [...f.cites.paypal.filter((id) => !e.paypal.includes(id)).map((id) => doc('p', id)), ...f.cites.ledger.filter((id) => !e.ledger.includes(id)).map((id) => doc('l', id))];
     if (extra.length) html += `<div class="v-sec"><span class="v-label">Also settles</span>${extra.join('')}</div>`;
