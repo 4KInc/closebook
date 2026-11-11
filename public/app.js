@@ -1,6 +1,6 @@
 /* closebook front end: one AG Grid per tab, a detail panel, and calls to the server's JSON API.
    The HTML itself is built in view.mjs, where every value from the books or PayPal is escaped. */
-import { fmt, words, esc, badge, statusChip, byBadge, itemsLabel, entryText, voucherHtml, itemsCellHtml, waterfallHtml } from './view.mjs';
+import { fmt, words, esc, badge, statusChip, byBadge, itemsLabel, entryText, voucherHtml, itemsCellHtml, waterfallHtml, kindLabel, day } from './view.mjs';
 const $ = (id) => document.getElementById(id);
 let state = null;
 let tab = 'exceptions';
@@ -54,15 +54,15 @@ function render() {
     resume.hidden = !state?.summary;
     if (state?.summary) $('resumeLabel').textContent = `${state.source.label} · difference ${fmt(state.summary.difference)}`;
     const ps = state?.config?.paypalStatus;
-    $('paypalHint').textContent = !state?.config?.paypal ? 'This server has no PayPal credentials configured, so only the demo month is available here.' : ps && !ps.ok && ps.status ? ps.message : '';
+    $('paypalHint').textContent = !state?.config?.paypal ? 'PayPal isn\'t connected here yet, so only the demo month is available.' : ps && !ps.ok && ps.status ? 'We can\'t reach PayPal right now. Please try again in a few minutes.' : '';
     $('openPaypal').disabled = !state?.config?.paypal;
     $('openSandbox').disabled = !state?.config?.paypal;
-    if (!state?.config?.paypal) $('sandboxHint').textContent = 'This server has no PayPal credentials, so the live month is not available here.';
+    if (!state?.config?.paypal) $('sandboxHint').textContent = 'PayPal isn\'t connected here yet, so this month isn\'t available.';
     return;
   }
   $('start').hidden = true; $('app').hidden = false;
   const s = state.summary;
-  $('source').innerHTML = [state.source.label, `${state.currency ?? 'USD'} · PayPal clearing 1010`, state.config.claude ? `AI: ${state.config.model}` : state.recorded ? 'AI: recorded proposals' : 'AI off: rules only'].map((t) => `<span>${esc(t)}</span>`).join('');
+  $('source').innerHTML = [state.source.label, state.currency ?? 'USD', state.config.claude ? 'AI suggestions on' : state.recorded ? 'AI suggestions: saved' : 'AI suggestions off'].map((t) => `<span>${esc(t)}</span>`).join('');
   $('tPaypal').textContent = fmt(s.paypalNet);
   $('tBooks').textContent = fmt(s.books);
   countTo($('tDiff'), s.difference);
@@ -75,13 +75,13 @@ function render() {
   const b = s.balance;
   $('balcheck').hidden = !b;
   if (b) {
-    const day = (x) => esc((x.asOf ?? x.asked ?? '').replace('T', ' ').slice(0, 16));
-    $('balcheck').innerHTML = `<span>PayPal's own balance (Balances API): <b>${fmt(b.opening.total)}</b> at ${day(b.opening)} → <b>${fmt(b.closing.total)}</b> at ${day(b.closing)} UTC, moved <b>${fmt(b.moved)}</b>; Transaction Search net <b>${fmt(b.activity)}</b>.</span>${b.gap === 0 ? '<span class="ok">✓ every transaction accounted for</span>' : `<span class="off">✗ ${fmt(b.gap)} not in the transactions read</span>`}`;
+    const on = (x) => esc(day(x.asOf ?? x.asked));
+    $('balcheck').innerHTML = `<span>Your PayPal balance went from <b>${fmt(b.opening.total)}</b> on ${on(b.opening)} to <b>${fmt(b.closing.total)}</b> on ${on(b.closing)}, a change of <b>${fmt(b.moved)}</b>.</span>${b.gap === 0 ? '<span class="ok">✓ every PayPal payment is accounted for</span>' : `<span class="off">✗ ${fmt(b.gap)} of it isn't in the payments we read</span>`}`;
   }
   $('waterfall').innerHTML = waterfallHtml(state);
   $('ticks').innerHTML = kinds.map((k) => `<span class="tick ${k}"></span>`).join('');
   const n = (k) => kinds.filter((x) => x === k).length;
-  $('counts').innerHTML = `<span><b>${s.matched}</b> matched by rule</span><span class="k-done"><i></i><b>${n('done')}</b> settled</span><span class="k-ready"><i></i><b>${n('ready')}</b> ready to approve</span>${n('fail') ? `<span class="k-fail"><i></i><b>${n('fail')}</b> failing checks</span>` : ''}<span><i></i><b>${n('open') + n('pending')}</b> open</span>`;
+  $('counts').innerHTML = `<span><b>${s.matched}</b> matched automatically</span><span class="k-done"><i></i><b>${n('done')}</b> done</span><span class="k-ready"><i></i><b>${n('ready')}</b> ready to approve</span>${n('fail') ? `<span class="k-fail"><i></i><b>${n('fail')}</b> need a fix</span>` : ''}<span><i></i><b>${n('open') + n('pending')}</b> to review</span>`;
   $('nEx').textContent = s.open; $('nMatched').textContent = s.matched; $('nPaypal').textContent = state.paypal.length; $('nBooks').textContent = state.ledger.length;
   $('nJournal').textContent = s.approved;
   $('proposeAll').disabled = busy || !state.exceptions.some((e) => e.status === 'open' && !e.fix);
@@ -102,26 +102,26 @@ function columnsAndRows() {
     const rows = state.exceptions.map((e) => ({
       ...e,
       what: itemsLabel(state, e),
-      kind: e.source === 'fee' ? 'fee gap' : e.source === 'paypal' ? 'only in PayPal' : 'only in books',
+      kind: e.source === 'fee' ? 'PayPal fee missing' : e.source === 'paypal' ? 'Only in PayPal' : 'Only in your books',
       category: e.fix ? state.config.categories[e.fix.category] ?? e.fix.category : '',
-      by: e.fix ? (e.fix.by === 'claude' ? 'AI' : 'rule') + (e.fix.recorded ? ' recorded' : '') + (e.fix.original ? ' edited' : '') : '',
+      by: e.fix ? (e.fix.by === 'claude' ? 'AI' : 'auto') + (e.fix.recorded ? ' saved' : '') + (e.fix.original ? ' changed by you' : '') : '',
       entry: e.fix ? e.fix.lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.account} ${fmt(l.debit || l.credit)}`).join(', ') : '',
       order: e.status === 'open' ? (e.fix ? (e.check.ok ? 1 : 0) : 2) : 3,
       // The cell shows a chip built from several fields; give it a value that changes with them
       // so AG Grid refreshes the cell.
       statusKey: `${e.status}|${e.pending ? 'p' : ''}|${e.fix ? (e.check.ok ? 'ok' : 'fail') : ''}|${e.coveredBy ?? ''}`,
-      statusText: e.status === 'approved' ? 'approved' : e.status === 'covered' ? 'settled' : !e.fix ? 'exception' : e.check.ok ? 'ready' : 'fails checks',
+      statusText: e.status === 'approved' ? 'approved' : e.status === 'covered' ? 'done' : !e.fix ? 'to review' : e.check.ok ? 'ready' : 'needs a fix',
     }));
     return {
       rows,
       cols: [
         { field: 'statusKey', headerName: 'Status', width: 130, pinned: 'left', cellRenderer: (p) => (p.node.rowPinned ? '' : statusChip(p.data)), sort: 'asc', comparator: (a, b, na, nb) => (na?.data?.order ?? 9) - (nb?.data?.order ?? 9), filter: 'agTextColumnFilter', filterValueGetter: (p) => p.data.statusText },
-        textCol('kind', 'Found', { width: 120 }),
-        moneyCol('gap', 'Gap'),
-        textCol('what', 'Items', { flex: 2, minWidth: 220, tooltipField: 'what', cellRenderer: (p) => (p.node.rowPinned ? esc(p.value) : itemsCellHtml(p.data, p.value)) }),
-        textCol('category', 'Proposed fix', { flex: 1, minWidth: 170 }),
-        { field: 'by', headerName: 'By', width: 196, cellRenderer: (p) => (p.node.rowPinned ? '' : byBadge(p.data)), filter: 'agTextColumnFilter' },
-        textCol('entry', 'Entry', { flex: 1.4, minWidth: 220, tooltipField: 'entry', cellClass: 'mono' }),
+        textCol('kind', 'Found', { width: 150 }),
+        moneyCol('gap', 'Difference'),
+        textCol('what', 'What', { flex: 2, minWidth: 220, tooltipField: 'what', cellRenderer: (p) => (p.node.rowPinned ? esc(p.value) : itemsCellHtml(p.data, p.value)) }),
+        textCol('category', 'Suggested fix', { flex: 1, minWidth: 170 }),
+        { field: 'by', headerName: 'From', width: 196, cellRenderer: (p) => (p.node.rowPinned ? '' : byBadge(p.data)), filter: 'agTextColumnFilter' },
+        textCol('entry', 'Journal entry', { flex: 1.4, minWidth: 220, tooltipField: 'entry', cellClass: 'mono' }),
       ],
     };
   }
@@ -129,22 +129,22 @@ function columnsAndRows() {
     const byP = new Map(state.paypal.map((t) => [t.id, t]));
     const byL = new Map(state.ledger.map((l) => [l.id, l]));
     return {
-      rows: state.matches.map((m) => { const t = byP.get(m.paypal), l = byL.get(m.ledger); return { date: t.date, paypal: t.id, code: t.code, subject: t.subject, gross: t.gross, net: t.net, line: l.id, memo: l.memo, amount: l.amount, rule: m.rule === 'reference' ? 'reference' : 'amount + date', basis: m.basis }; }),
-      cols: [{ field: 'status', headerName: 'Status', width: 110, cellRenderer: (p) => (p.node.rowPinned ? '' : badge('good', 'Matched')) }, textCol('date', 'Date', { width: 110 }), textCol('paypal', 'PayPal ID', { width: 190, cellClass: 'mono' }), textCol('code', 'Code', { width: 84, cellClass: 'mono' }), textCol('subject', 'Subject', { flex: 1 }), moneyCol('gross', 'Gross'), moneyCol('net', 'Net'), textCol('line', 'Book line', { width: 100, cellClass: 'mono' }), textCol('memo', 'Memo', { flex: 1 }), moneyCol('amount', 'Booked'), textCol('rule', 'Rule', { width: 130 }), textCol('basis', 'Booked at', { width: 100 })],
+      rows: state.matches.map((m) => { const t = byP.get(m.paypal), l = byL.get(m.ledger); return { date: t.date, paypal: t.id, type: kindLabel(t), subject: t.subject, gross: t.gross, net: t.net, line: l.id, memo: l.memo, amount: l.amount, rule: m.rule === 'reference' ? 'invoice or ID' : 'amount and date', basis: m.basis === 'net' ? 'after fee' : m.basis === 'gross' ? 'before fee' : m.basis }; }),
+      cols: [{ field: 'status', headerName: 'Status', width: 110, cellRenderer: (p) => (p.node.rowPinned ? '' : badge('good', 'Matched')) }, textCol('date', 'Date', { width: 110 }), textCol('type', 'Type', { width: 120 }), textCol('subject', 'Item', { flex: 1 }), moneyCol('gross', 'Amount'), moneyCol('net', 'You received'), textCol('memo', 'In your books', { flex: 1 }), moneyCol('amount', 'Booked'), textCol('rule', 'Matched by', { width: 140 }), textCol('basis', 'Booked', { width: 100 }), textCol('paypal', 'PayPal ID', { width: 190, cellClass: 'mono' }), textCol('line', 'Line', { width: 80, cellClass: 'mono' })],
     };
   }
   if (tab === 'paypal') {
     return {
-      rows: state.paypal,
-      cols: [textCol('date', 'Date', { width: 110 }), textCol('id', 'Transaction ID', { width: 190, cellClass: 'mono' }), textCol('code', 'Code', { width: 84, cellClass: 'mono' }), textCol('kind', 'Kind', { width: 104 }), textCol('subject', 'Subject', { flex: 1 }), textCol('payer', 'Payer', { width: 140 }), moneyCol('gross', 'Gross'), moneyCol('fee', 'Fee', 104), moneyCol('net', 'Net'), textCol('invoice', 'Invoice', { width: 110, cellClass: 'mono' }), textCol('ref', 'Refers to', { width: 190, cellClass: 'mono' })],
+      rows: state.paypal.map((t) => ({ ...t, type: kindLabel(t) })),
+      cols: [textCol('date', 'Date', { width: 110 }), textCol('type', 'Type', { width: 150 }), textCol('subject', 'Item', { flex: 1 }), textCol('payer', 'Customer', { width: 140 }), moneyCol('gross', 'Amount'), moneyCol('fee', 'PayPal fee', 110), moneyCol('net', 'You received', 128), textCol('invoice', 'Invoice', { width: 110, cellClass: 'mono' }), textCol('id', 'PayPal ID', { width: 190, cellClass: 'mono' })],
     };
   }
   if (tab === 'books') {
-    return { rows: state.ledger, cols: [textCol('id', 'Line', { width: 90, cellClass: 'mono' }), textCol('date', 'Date', { width: 110 }), textCol('memo', 'Memo', { flex: 1 }), textCol('ref', 'Ref', { width: 140, cellClass: 'mono' }), moneyCol('amount', 'Amount')] };
+    return { rows: state.ledger, cols: [textCol('id', 'Line', { width: 90, cellClass: 'mono' }), textCol('date', 'Date', { width: 110 }), textCol('memo', 'Memo', { flex: 1 }), textCol('ref', 'Reference', { width: 140, cellClass: 'mono' }), moneyCol('amount', 'Amount')] };
   }
   const rows = [];
-  state.exceptions.filter((e) => e.status === 'approved').forEach((e, i) => e.fix.lines.forEach((l) => rows.push({ entry: `JE-${String(i + 1).padStart(3, '0')}`, account: `${l.account} ${state.chart[l.account] ?? ''}`, debit: l.debit || null, credit: l.credit || null, memo: e.fix.memo, by: e.fix.by === 'claude' ? 'AI' : 'rule', exception: e.id })));
-  return { rows, cols: [textCol('entry', 'Entry', { width: 96, cellClass: 'mono' }), textCol('account', 'Account', { width: 200 }), moneyCol('debit', 'Debit'), moneyCol('credit', 'Credit'), textCol('memo', 'Memo', { flex: 1, tooltipField: 'memo' }), { field: 'by', headerName: 'By', width: 92, cellRenderer: (p) => (p.node.rowPinned ? '' : p.value === 'AI' ? badge('claude', 'AI') : badge('rule', 'Rule')), filter: 'agTextColumnFilter' }, textCol('exception', 'Exception', { width: 210, cellClass: 'mono' })] };
+  state.exceptions.filter((e) => e.status === 'approved').forEach((e, i) => e.fix.lines.forEach((l) => rows.push({ entry: `JE-${String(i + 1).padStart(3, '0')}`, account: `${l.account} ${state.chart[l.account] ?? ''}`, debit: l.debit || null, credit: l.credit || null, memo: e.fix.memo, by: e.fix.by === 'claude' ? 'AI' : 'auto', exception: e.id })));
+  return { rows, cols: [textCol('entry', 'Entry', { width: 96, cellClass: 'mono' }), textCol('account', 'Account', { width: 200 }), moneyCol('debit', 'Debit'), moneyCol('credit', 'Credit'), textCol('memo', 'Memo', { flex: 1, tooltipField: 'memo' }), { field: 'by', headerName: 'From', width: 92, cellRenderer: (p) => (p.node.rowPinned ? '' : p.value === 'AI' ? badge('claude', 'AI') : badge('rule', 'Auto')), filter: 'agTextColumnFilter' }, textCol('exception', 'Item', { width: 210, cellClass: 'mono' })] };
 }
 
 // The grid takes its colours from the page's tokens, so it is green-bar paper in both themes.
@@ -248,7 +248,7 @@ function drawEntryGrid(e) {
     field, headerName: field === 'debit' ? 'Debit' : 'Credit', width: 104, type: 'rightAligned', editable: (p) => !p.node.rowPinned,
     cellClass: 'money ag-right-aligned-cell', valueFormatter: (p) => (p.value ? fmt(p.value) : ''),
     // A line is a debit or a credit: typing on one side clears the other. A blank cell is zero.
-    valueSetter: (p) => { const c = p.newValue === '' || p.newValue == null ? 0 : parseDollars(p.newValue); if (c === null) { setStatus(`"${p.newValue}" is not an amount`); return false; } p.data[field] = c || null; if (c) p.data[other] = null; return true; },
+    valueSetter: (p) => { const c = p.newValue === '' || p.newValue == null ? 0 : parseDollars(p.newValue); if (c === null) { setStatus(`"${p.newValue}" isn't an amount. Type it like 12.50.`); return false; } p.data[field] = c || null; if (c) p.data[other] = null; return true; },
   });
   const totals = () => [{ account: 'Total', debit: rows.reduce((a, r) => a + (r.debit ?? 0), 0), credit: rows.reduce((a, r) => a + (r.credit ?? 0), 0) }];
   entryGrid = agGrid.createGrid($('entryGrid'), {
@@ -268,7 +268,7 @@ function drawEntryGrid(e) {
     onCellValueChanged: send,
   });
   $('addLine').addEventListener('click', () => { rows.push({ i: rows.length, account: '3999', debit: null, credit: null }); entryGrid.setGridOption('rowData', rows); });
-  $('dropLine').addEventListener('click', () => { const [sel] = entryGrid.getSelectedRows(); if (!sel) { setStatus('Select a line first.'); return; } rows.splice(rows.indexOf(sel), 1); entryGrid.setGridOption('rowData', rows); send(); });
+  $('dropLine').addEventListener('click', () => { const [sel] = entryGrid.getSelectedRows(); if (!sel) { setStatus('Click a line first, then remove it.'); return; } rows.splice(rows.indexOf(sel), 1); entryGrid.setGridOption('rowData', rows); send(); });
 }
 
 async function editEntry(id, changes) {
@@ -285,8 +285,8 @@ async function proposeOne(id) {
   try {
     const next = await api(`/api/exceptions/${encodeURIComponent(id)}/propose`, { post: true, body: {} });
     state = next;
-    if (next.fallback) setStatus(`Live AI calls are unavailable (${next.fallback}): showing Claude's recorded proposals, checked now.`);
-  } catch (err) { e.pending = false; setStatus(`${id}: ${err.message}`); render(); return false; }
+    if (next.fallback) setStatus(`The AI isn't available right now (${next.fallback}), so you're seeing its saved suggestions. Each one was double-checked again just now.`);
+  } catch (err) { e.pending = false; setStatus(err.message); render(); return false; }
   render();
   return true;
 }
@@ -301,14 +301,14 @@ $('proposeAll').addEventListener('click', async () => {
   if (state.config.claude || state.recorded) {
     let fellBack = false;
     for (let next = todo()[0]; next; next = todo()[0]) {
-      n++; if (!fellBack) setStatus(`AI is proposing ${n} of ~${n + todo().length - 1}…`);
+      n++; if (!fellBack) setStatus(`The AI is suggesting a fix for item ${n} of ${n + todo().length - 1}…`);
       tried.add(next.id);
       const ok = await proposeOne(next.id);
       if (!ok) break;
       fellBack ||= state.exceptions.some((e) => e.fix?.recorded);
     }
-    if (!fellBack) setStatus('Proposals done. Review each one and approve or reject.');
-  } else setStatus('Rule fixes proposed. AI is off on this server, so the other exceptions need a manual fix.');
+    if (!fellBack) setStatus('Every item has a suggested fix. Look each one over, then approve or reject it.');
+  } else setStatus('The PayPal fee fixes are ready. AI suggestions aren\'t available here, so the other items need a fix by hand.');
   busy = false; render();
 });
 
@@ -318,7 +318,7 @@ $('approveRules').addEventListener('click', async () => {
     for (const e of state.exceptions.filter((x) => x.status === 'open' && x.fix?.by === 'rule' && x.check?.ok)) {
       state = await api(`/api/exceptions/${encodeURIComponent(e.id)}/approve`, { post: true, body: {} });
     }
-    setStatus('Rule fixes approved.');
+    setStatus('PayPal fee fixes approved.');
   } catch (err) { setStatus(err.message); }
   busy = false; render();
 });
@@ -335,17 +335,17 @@ $('openDemo').addEventListener('click', async () => { state = await api('/api/cl
 $('resumeBtn').addEventListener('click', openView);
 $('openSandbox').addEventListener('click', async () => {
   $('openSandbox').disabled = true;
-  $('sandboxHint').textContent = 'Reading PayPal Transaction Search and the Balances API…';
+  $('sandboxHint').textContent = 'Reading the month from PayPal…';
   try { state = await api('/api/close/sandbox', { post: true, body: {} }); selected = null; grid?.destroy(); grid = null; $('sandboxHint').textContent = ''; openView(); }
   catch (err) { $('sandboxHint').textContent = err.message; }
   $('openSandbox').disabled = false;
 });
 $('openPaypal').addEventListener('click', async () => {
   const file = $('csv').files[0];
-  if (!$('period').value || !file) { $('paypalHint').textContent = 'Pick a month and a CSV first.'; return; }
-  if (file.size > 2 * 1024 * 1024) { $('paypalHint').textContent = `That file is ${(file.size / 1048576).toFixed(1)} MB; the books CSV can be at most 2 MB.`; return; }
-  $('paypalHint').textContent = 'Reading PayPal Transaction Search…';
-  try { state = await api('/api/close/paypal', { body: { period: $('period').value, ledgerCsv: await file.text() } }); selected = null; grid?.destroy(); grid = null; $('paypalHint').textContent = ''; openView(); if (state.outside) setStatus(`${state.outside} book line${state.outside > 1 ? 's' : ''} dated outside ${state.period} ${state.outside > 1 ? 'were' : 'was'} left out of this close.`); }
+  if (!$('period').value || !file) { $('paypalHint').textContent = 'Pick a month and choose your file first.'; return; }
+  if (file.size > 2 * 1024 * 1024) { $('paypalHint').textContent = `That file is ${(file.size / 1048576).toFixed(1)} MB. It can be at most 2 MB: one month of PayPal activity is usually far less.`; return; }
+  $('paypalHint').textContent = 'Reading the month from PayPal…';
+  try { state = await api('/api/close/paypal', { body: { period: $('period').value, ledgerCsv: await file.text() } }); selected = null; grid?.destroy(); grid = null; $('paypalHint').textContent = ''; openView(); if (state.outside) setStatus(`${state.outside} line${state.outside > 1 ? 's' : ''} in your file ${state.outside > 1 ? 'are' : 'is'} dated outside this month, so ${state.outside > 1 ? 'they were' : 'it was'} left out.`); }
   catch (err) { $('paypalHint').textContent = err.message; }
 });
 $('restart').addEventListener('click', () => { state = { config: state.config }; grid?.destroy(); grid = null; selected = null; history.pushState(null, '', location.pathname); render(); });

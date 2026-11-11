@@ -52,7 +52,7 @@ export function ruleFix(close, ex) {
 
 export function propose(close, exceptionId, fix) {
   const ex = close.exceptions.find((e) => e.id === exceptionId);
-  if (!ex || ex.status !== 'open') throw new Error(`${exceptionId} is not open`);
+  if (!ex || ex.status !== 'open') throw new Error('This item is already done.');
   ex.fix = { ...fix, exception: exceptionId };
   ex.check = check(ex.fix, stateOf(close), close.chart);
   return ex;
@@ -61,10 +61,10 @@ export function propose(close, exceptionId, fix) {
 // Approving resolves the exception and every other open exception whose items the fix cites.
 export function approve(close, exceptionId, by = 'reviewer') {
   const ex = close.exceptions.find((e) => e.id === exceptionId);
-  if (!ex?.fix) throw new Error(`${exceptionId} has no proposed fix`);
-  if (ex.status !== 'open') throw new Error(`${exceptionId} is already ${ex.status}`);
+  if (!ex?.fix) throw new Error('There\'s no fix to approve yet.');
+  if (ex.status !== 'open') throw new Error('This item is already done.');
   const recheck = check(ex.fix, stateOf(close), close.chart);
-  if (!recheck.ok) throw new Error(`${exceptionId}: the fix fails its checks: ${recheck.failures.map((f) => f.detail).join('; ')}`);
+  if (!recheck.ok) throw new Error(`This fix hasn't passed its double-checks yet: ${recheck.failures.map((f) => f.detail).join(' ')}`);
   const citedP = new Set(ex.fix.cites.paypal), citedL = new Set(ex.fix.cites.ledger);
   for (const e of close.exceptions) {
     if (e.status !== 'open') continue;
@@ -89,8 +89,8 @@ const entryText = (lines) => lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.acco
 // the entry (what it was before), in the audit trail, and in the AI's next prompt.
 export function edit(close, exceptionId, changes, by = 'reviewer') {
   const ex = close.exceptions.find((e) => e.id === exceptionId);
-  if (!ex?.fix) throw new Error(`${exceptionId} has no proposed fix to edit`);
-  if (ex.status !== 'open') throw new Error(`${exceptionId} is already ${ex.status}`);
+  if (!ex?.fix) throw new Error('There\'s no fix to change yet.');
+  if (ex.status !== 'open') throw new Error('This item is already done.');
   const before = ex.fix;
   const original = before.original ?? { category: before.category, lines: before.lines, memo: before.memo, cites: before.cites };
   const next = {
@@ -118,7 +118,7 @@ export function edit(close, exceptionId, changes, by = 'reviewer') {
 
 export function reject(close, exceptionId, reason = '') {
   const ex = close.exceptions.find((e) => e.id === exceptionId);
-  if (!ex?.fix) throw new Error(`${exceptionId} has no proposed fix`);
+  if (!ex?.fix) throw new Error('There\'s no fix to reject yet.');
   close.decisions.push({ exception: ex.id, verdict: 'rejected', category: ex.fix.category, by: ex.fix.by, memo: ex.fix.memo, reason, at: new Date().toISOString() });
   ex.rejected = [...(ex.rejected ?? []), { fix: ex.fix, reason }];
   ex.fix = null; ex.check = null;

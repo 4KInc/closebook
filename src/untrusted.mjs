@@ -19,12 +19,12 @@ export function untrustedFlags(exceptions, byP, byL) {
     const found = [];
     for (const id of e.paypal) {
       const t = byP.get(id);
-      const fields = [['PayPal buyer note', t.note], ['PayPal item', t.subject !== t.note ? t.subject : null], ['PayPal payer name', t.payer]];
-      for (const [field, text] of fields) if (addressedToAI(text)) found.push({ field: `${field} on ${t.id}`, text });
+      const fields = [["The buyer's note", t.note], ['The item name', t.subject !== t.note ? t.subject : null], ['The customer name', t.payer]];
+      for (const [field, text] of fields) if (addressedToAI(text)) found.push({ field: `${field} on PayPal payment ${t.id}`, text });
     }
     for (const id of e.ledger) {
       const l = byL.get(id);
-      if (addressedToAI(l.memo)) found.push({ field: `Book memo on line ${l.id}`, text: l.memo });
+      if (addressedToAI(l.memo)) found.push({ field: `The description on line ${l.id} in your books`, text: l.memo });
     }
     if (found.length) out.set(e.id, found);
   }

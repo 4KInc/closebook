@@ -19,6 +19,7 @@ import { memoData, memoHtml, checkNarrative } from './src/memo.mjs';
 import { fetchMonth, fetchBalances, fetchDisputes, paypalConfigured, probe, PayPalError } from './src/paypal.mjs';
 import { CATEGORIES } from './src/codes.mjs';
 import { loadRecording, recordedFix } from './src/recorded.mjs';
+import { monthName } from './public/view.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 // Run directly (`node server.mjs`), the server reads .env and listens. Imported (the tests), it
@@ -73,6 +74,15 @@ async function body(req, limit = 3_000_000) { // a 2 MB CSV, JSON-escaped, fits
 
 // The recording for the month this session has open: the demo month, or closebook's own sandbox
 // account (one-click or uploaded books; a recorded proposal is used only for identical items).
+// Why live AI suggestions are not available for this session, in words a person can use; null
+// if they are. Counts a call against the daily limit when it says yes.
+function aiUnavailable(s) {
+  if (!claudeReady()) return 'AI suggestions aren\'t switched on here';
+  if (s.claudeCalls >= claudeLimit()) return 'you\'ve used this session\'s AI suggestions';
+  if (!takeDailyCall()) return 'today\'s AI suggestions are used up';
+  return null;
+}
+
 const recordingOf = (s) => (s.close && s.source ? loadRecording(s.source.kind === 'demo' ? 'demo' : 'paypal', s.close.period) : null);
 
 function view(s) {
@@ -145,12 +155,12 @@ export const MAX_CSV_BYTES = 2 * 1024 * 1024;
 
 async function closeFromPayPal(s, res, period, ledgerCsv, label) {
   // The upload is checked before anything else, so a bad file gets a clear answer on any server.
-  if (Buffer.byteLength(ledgerCsv ?? '', 'utf8') > MAX_CSV_BYTES) return json(res, 413, { error: `The books CSV is larger than 2 MB. Split it by month, or keep only the PayPal clearing account.` });
+  if (Buffer.byteLength(ledgerCsv ?? '', 'utf8') > MAX_CSV_BYTES) return json(res, 413, { error: 'Your file is larger than 2 MB. Upload one month of your PayPal account from your books.' });
   let ledger;
-  try { ledger = ledgerRows(ledgerCsv ?? ''); } catch (e) { return json(res, 400, { error: `The books CSV could not be read: ${e.message}` }); }
-  if (!paypalConfigured()) return json(res, 400, { error: 'PayPal credentials are not configured on this server' });
-  if (!/^\d{4}-\d{2}$/.test(period ?? '')) return json(res, 400, { error: 'pick a month first' });
-  if (ledger.length && !ledger.some((l) => l.date.startsWith(period))) return json(res, 400, { error: `None of the ${ledger.length} book lines is dated in ${period}. Check the month, or the dates in the CSV.` });
+  try { ledger = ledgerRows(ledgerCsv ?? ''); } catch (e) { return json(res, 400, { error: `We couldn't read your file: ${e.message}` }); }
+  if (!paypalConfigured()) return json(res, 400, { error: 'PayPal isn\'t connected here yet.' });
+  if (!/^\d{4}-\d{2}$/.test(period ?? '')) return json(res, 400, { error: 'Pick a month first.' });
+  if (ledger.length && !ledger.some((l) => l.date.startsWith(period))) return json(res, 400, { error: `None of the ${ledger.length} lines in your file is dated in ${monthName(period)}. Check the month you picked, or the dates in the file.` });
   let details, balances = null;
   try {
     // The balance read is a second check, not a requirement: if it fails, the close still opens.
@@ -159,10 +169,14 @@ async function closeFromPayPal(s, res, period, ledgerCsv, label) {
     if (b) balances = { opening: balanceRow(b.opening), closing: balanceRow(b.closing) };
   } catch (e) {
     console.error(`[paypal] ${period}: ${e.message}`);
-    if (e instanceof PayPalError) { if (e.status === 403 || e.status === 401) paypalStatus = { ok: false, status: e.status, message: e.message }; return json(res, 502, { error: e.message }); }
-    return json(res, 400, { error: e.message });
+    // The technical reason is in the log; the person gets what it means for them.
+    if (e instanceof PayPalError) {
+      if (e.status === 403 || e.status === 401) { paypalStatus = { ok: false, status: e.status, message: e.message }; return json(res, 502, { error: 'We couldn\'t open the PayPal account. It may need to be connected again.' }); }
+      return json(res, 502, { error: 'PayPal isn\'t answering right now. Please try again in a few minutes.' });
+    }
+    return json(res, 400, { error: 'Pick a month that has already started.' });
   }
-  if (!details.length) return json(res, 404, { error: `PayPal returned no balance-affecting transactions for ${period}. New transactions can take up to three hours to appear in Transaction Search.` });
+  if (!details.length) return json(res, 404, { error: `PayPal shows no activity for ${monthName(period)} yet. New payments can take up to three hours to show up.` });
   // Disputes behind any holds and chargebacks: extra context for the AI and the reviewer, never
   // required, so a failure only means the close opens without them.
   const rows = paypalRows(details);
@@ -184,19 +198,19 @@ async function route(req, res) {
   if (req.method === 'POST' && p === '/api/close/demo') {
     const d = demoMonth();
     s.close = openClose({ paypal: paypalRows(d.transaction_details), ledger: ledgerRows(d.ledgerCsv), period: d.period, balances: { opening: balanceRow(d.balances.opening), closing: balanceRow(d.balances.closing) }, disputes: disputeRows(d.disputes) });
-    s.source = { kind: 'demo', label: `Demo month: ${d.shop}, ${d.period}` };
+    s.source = { kind: 'demo', label: `Demo: ${d.shop} · ${monthName(d.period)}` };
     return json(res, 200, view(s));
   }
 
   if (req.method === 'POST' && p === '/api/close/paypal') {
     const { period, ledgerCsv } = await body(req);
-    return closeFromPayPal(s, res, period, ledgerCsv, `PayPal sandbox, ${period}`);
+    return closeFromPayPal(s, res, period, ledgerCsv, `Your PayPal · ${monthName(period)}`);
   }
 
   // One click for judges: closebook's own sandbox account, read live through Transaction Search,
   // against the books file committed in samples/.
   if (req.method === 'POST' && p === '/api/close/sandbox') {
-    return closeFromPayPal(s, res, SANDBOX.period, await readFile(SANDBOX.file, 'utf8'), `closebook's PayPal sandbox, read live: ${SANDBOX.period}`);
+    return closeFromPayPal(s, res, SANDBOX.period, await readFile(SANDBOX.file, 'utf8'), `Test shop on PayPal · ${monthName(SANDBOX.period)}`);
   }
 
   if (req.method === 'GET' && p === '/api/sandbox-books.csv') {
@@ -209,7 +223,7 @@ async function route(req, res) {
     return res.end(demoMonth().ledgerCsv + '\n');
   }
 
-  if (!s.close) return json(res, 409, { error: 'open a month first' });
+  if (!s.close) return json(res, 409, { error: 'Open a month first.' });
   const c = s.close;
 
   if (req.method === 'GET' && p === '/api/journal.csv') {
@@ -230,16 +244,16 @@ async function route(req, res) {
     let narrative = null, note = null;
     if (c.memoNarrative?.sig === sig) ({ narrative, note } = c.memoNarrative);
     else {
-      const unavailable = !claudeReady() ? 'no API key on this server' : s.claudeCalls >= claudeLimit() ? 'this session has used its live AI calls' : !takeDailyCall() ? 'this server has used its live AI calls for today' : null;
-      if (unavailable) note = `No narrative: live AI is unavailable (${unavailable}). Every number below is from code.`;
+      const unavailable = aiUnavailable(s);
+      if (unavailable) note = `No summary paragraph this time: the AI isn't available (${unavailable}). Every figure below comes straight from your data.`;
       else {
         s.claudeCalls++;
         try {
           const text = await narrateClose(d);
           const verdict = checkNarrative(text, d);
           if (verdict.ok) narrative = text;
-          else note = `The AI's narrative was left out because it mentioned ${verdict.problems.slice(0, 3).join(', ')}, which ${verdict.problems.length > 1 ? 'are' : 'is'} not in this summary. Every number below is from code.`;
-        } catch (e) { note = `No narrative: the AI call failed (${e.status ?? e.message}). Every number below is from code.`; }
+          else note = `The AI's summary paragraph was left out because it mentioned ${verdict.problems.slice(0, 3).join(', ')}, which ${verdict.problems.length > 1 ? 'aren\'t' : 'isn\'t'} in the figures below. Every figure below comes straight from your data.`;
+        } catch (e) { console.warn(`[claude] memo: ${e.message}`); note = 'No summary paragraph this time: the AI didn\'t respond. Every figure below comes straight from your data.'; }
       }
       c.memoNarrative = { sig, narrative, note };
     }
@@ -256,20 +270,18 @@ async function route(req, res) {
   if (req.method === 'POST' && m) {
     const [, id, action] = m;
     const ex = c.exceptions.find((e) => e.id === decodeURIComponent(id));
-    if (!ex) return json(res, 404, { error: 'no such exception' });
+    if (!ex) return json(res, 404, { error: 'That item isn\'t here any more. Reload the page.' });
     if (action === 'propose') {
       if (ex.status !== 'open') return json(res, 200, { skipped: true, ...view(s) });
       const rule = ruleFix(c, ex);
       if (rule) { propose(c, ex.id, rule); return json(res, 200, view(s)); }
       // Live if possible; otherwise Claude's recorded proposal for this month, checked now like a
       // live one; otherwise a plain answer that Claude is unavailable and rule fixes still work.
-      const unavailable = !claudeReady() ? 'no API key on this server'
-        : s.claudeCalls >= claudeLimit() ? 'this session has used its live AI proposals'
-          : !takeDailyCall() ? 'this server has used its live AI proposals for today' : null;
+      const unavailable = aiUnavailable(s);
       let live = null, failure = unavailable;
       if (!unavailable) {
         s.claudeCalls++;
-        try { live = await proposeWithClaude(c, ex); } catch (e) { console.warn(`[claude] ${ex.id}: ${e.message}`); failure = `the live call failed (${e.status ?? e.message})`; }
+        try { live = await proposeWithClaude(c, ex); } catch (e) { console.warn(`[claude] ${ex.id}: ${e.message}`); failure = 'the AI didn\'t respond'; }
       }
       if (ex.status !== 'open') return json(res, 200, { skipped: true, ...view(s) });
       if (live) {
@@ -284,7 +296,7 @@ async function route(req, res) {
         ex.attempts = null; ex.firstFailures = null;
         return json(res, 200, { fallback: failure, ...view(s) });
       }
-      return json(res, 503, { error: `Claude is unavailable (${failure}), and there is no recorded proposal for this exception. Rule fixes still work.` });
+      return json(res, 503, { error: `The AI isn't available right now (${failure}), and there's no saved suggestion for this item. You can still fix it by hand, and the PayPal fee fixes still work.` });
     }
     // A refused approval (checks fail, nothing proposed, already settled) is the reviewer's to fix: 409.
     if (action === 'approve') { try { approve(c, ex.id); } catch (e) { return json(res, 409, { error: e.message }); } return json(res, 200, view(s)); }
@@ -307,7 +319,7 @@ async function route(req, res) {
 
 export function start(port = PORT, { quiet = false } = {}) {
   const server = createServer((req, res) => {
-    route(req, res).catch((e) => { if (!e.status || e.status >= 500) console.error(e); if (!res.headersSent) json(res, e.status ?? 500, { error: e.message }); });
+    route(req, res).catch((e) => { if (!e.status || e.status >= 500) console.error(e); if (!res.headersSent) json(res, e.status ?? 500, { error: e.status && e.status < 500 ? e.message : 'Something went wrong on our side. Please try again.' }); });
   });
   return new Promise((resolve) => server.listen(port, async () => {
     if (!quiet) console.log(`closebook on http://localhost:${server.address().port}  claude:${claudeReady() ? MODEL : 'off'}  paypal:${paypalConfigured() ? 'on' : 'off'}`);

@@ -1,6 +1,7 @@
 // Deterministic checks on a proposed fix. A fix (from a rule or from Claude) can only be approved
 // if every check passes. The checks never call a model.
-import { CATEGORIES } from './codes.mjs';
+import { CATEGORIES, KIND_WORDS } from './codes.mjs';
+import { fmt } from './money.mjs';
 import { gapOf } from './match.mjs';
 
 export const CLEARING = '1010';
@@ -23,56 +24,57 @@ export function check(fix, state, chart = CHART) {
   const failures = [];
   const fail = (rule, detail) => failures.push({ rule, detail });
   const ex = state.open.get(fix.exception);
-  if (!ex) return { ok: false, failures: [{ rule: 'open', detail: `exception ${fix.exception} is not open` }] };
+  if (!ex) return { ok: false, failures: [{ rule: 'open', detail: 'This item is already done.' }] };
 
   const cat = CATEGORIES[fix.category];
-  if (!cat) fail('category', `unknown category "${fix.category}"`);
+  if (!cat) fail('category', `"${fix.category}" isn't a type of fix closebook knows.`);
+  const label = cat?.label ?? fix.category;
 
   const cites = { paypal: [...new Set(fix.cites?.paypal ?? [])], ledger: [...new Set(fix.cites?.ledger ?? [])] };
   const openP = new Set(), openL = new Set();
   for (const e of state.open.values()) { e.paypal.forEach((id) => openP.add(id)); e.ledger.forEach((id) => openL.add(id)); }
-  for (const id of ex.paypal) if (!cites.paypal.includes(id)) fail('cites', `must cite its own PayPal transaction ${id}`);
-  for (const id of ex.ledger) if (!cites.ledger.includes(id)) fail('cites', `must cite its own book line ${id}`);
-  for (const id of cites.paypal) if (!openP.has(id)) fail('cites', `PayPal transaction ${id} is not part of an open exception`);
-  for (const id of cites.ledger) if (!openL.has(id)) fail('cites', `book line ${id} is not part of an open exception`);
+  for (const id of ex.paypal) if (!cites.paypal.includes(id)) fail('cites', `It has to include this item's own PayPal payment (${id}).`);
+  for (const id of ex.ledger) if (!cites.ledger.includes(id)) fail('cites', `It has to include this item's own line in your books (${id}).`);
+  for (const id of cites.paypal) if (!openP.has(id)) fail('cites', state.byP.has(id) ? `PayPal payment ${id} has already been fixed by another approved fix.` : `PayPal payment ${id} isn't one of this month's items.`);
+  for (const id of cites.ledger) if (!openL.has(id)) fail('cites', state.byL.has(id) ? `Line ${id} in your books has already been fixed by another approved fix.` : `Line ${id} isn't in your books for this month.`);
   // Approval settles every exception the entry touches, so an entry that cites one item of another
   // exception must cite all of them: otherwise it would settle that exception while moving
   // clearing by only part of its gap, and the close could end with nothing open and a difference.
   for (const e of state.open.values()) {
     if (e.id === ex.id) continue;
-    const missing = [...e.paypal.filter((id) => !cites.paypal.includes(id)).map((id) => `PayPal transaction ${id}`), ...e.ledger.filter((id) => !cites.ledger.includes(id)).map((id) => `book line ${id}`)];
+    const missing = [...e.paypal.filter((id) => !cites.paypal.includes(id)).map((id) => `PayPal payment ${id}`), ...e.ledger.filter((id) => !cites.ledger.includes(id)).map((id) => `line ${id} in your books`)];
     const touched = missing.length < e.paypal.length + e.ledger.length;
-    if (touched && missing.length) fail('cites', `cites part of exception ${e.id}; cite all of it (also ${missing.join(', ')}) or none of it`);
+    if (touched && missing.length) fail('cites', `It includes part of another item (${e.id}). Include all of it (also ${missing.join(', ')}) or none of it.`);
   }
 
   let debit = 0, credit = 0, clearing = 0;
   const lines = fix.lines ?? [];
-  if (!lines.length) fail('lines', 'the entry has no lines');
+  if (!lines.length) fail('lines', 'The journal entry has no lines.');
   for (const [i, l] of lines.entries()) {
-    if (!(l.account in chart)) fail('account', `line ${i + 1}: account ${l.account} is not in the chart of accounts`);
+    if (!(l.account in chart)) fail('account', `Line ${i + 1}: account ${l.account} isn't in your chart of accounts.`);
     const d = l.debit ?? 0, c = l.credit ?? 0;
-    if (!Number.isInteger(d) || !Number.isInteger(c) || d < 0 || c < 0 || (d > 0) === (c > 0)) fail('line', `line ${i + 1}: needs exactly one positive whole-cent debit or credit`);
+    if (!Number.isInteger(d) || !Number.isInteger(c) || d < 0 || c < 0 || (d > 0) === (c > 0)) fail('line', `Line ${i + 1} needs an amount as either a debit or a credit, not both.`);
     debit += d; credit += c;
     if (l.account === CLEARING) clearing += d - c;
   }
-  if (debit !== credit) fail('balanced', `debits ${debit} and credits ${credit} differ by ${debit - credit} cents`);
+  if (debit !== credit) fail('balanced', `Debits (${fmt(debit)}) and credits (${fmt(credit)}) are ${fmt(Math.abs(debit - credit))} apart; they have to be equal.`);
 
   if (!failures.some((f) => f.rule === 'cites')) {
     const gap = gapOf(cites, state.byP, state.byL);
-    if (clearing !== gap) fail('closes_gap', `moves PayPal clearing by ${clearing} cents; the cited items leave a gap of ${gap} cents`);
+    if (clearing !== gap) fail('closes_gap', `It changes PayPal in your books by ${fmt(clearing)}, but the difference to fix is ${fmt(gap)}.`);
 
     const txs = cites.paypal.map((id) => state.byP.get(id));
     if (cat) {
-      if (cat.needs.length && !txs.some((t) => cat.needs.includes(t.kind))) fail('category_fits', `"${fix.category}" needs a cited PayPal transaction of kind ${cat.needs.join(' or ')}; cited kinds are ${txs.map((t) => t.kind).join(', ') || 'none'}`);
-      if (!cat.needs.length && txs.length) fail('category_fits', `"${fix.category}" is about the books only and cannot cite PayPal transactions`);
-      if (cat.books && !cites.ledger.length) fail('category_fits', `"${fix.category}" must cite a book line`);
+      if (cat.needs.length && !txs.some((t) => cat.needs.includes(t.kind))) fail('category_fits', `"${label}" needs ${cat.needs.map((k) => KIND_WORDS[k] ?? k).join(' or ')} from PayPal, but this fix includes ${txs.map((t) => KIND_WORDS[t.kind] ?? t.kind).join(', ') || 'nothing from PayPal'}.`);
+      if (!cat.needs.length && txs.length) fail('category_fits', `"${label}" is about your books only, so it can't include PayPal payments.`);
+      if (cat.books && !cites.ledger.length) fail('category_fits', `"${label}" has to include a line from your books.`);
       if (fix.category === 'fee_not_booked') {
         const fees = txs.reduce((s, t) => s + t.fee, 0);
-        if (fees === 0) fail('category_fits', 'the cited transactions carry no PayPal fee');
-        else if (gap !== fees) fail('category_fits', `the gap (${gap}) is not the cited fees (${fees}); something besides the fee is unbooked`);
+        if (fees === 0) fail('category_fits', 'There is no PayPal fee on these payments.');
+        else if (gap !== fees) fail('category_fits', `The difference (${fmt(gap)}) isn't the PayPal fee (${fmt(fees)}): something besides the fee is missing from your books.`);
       }
       const foreign = txs.filter((t) => t.currency !== (state.currency ?? 'USD'));
-      if (foreign.length && fix.category !== 'fx_not_booked') fail('currency', `cites ${foreign.map((t) => `${t.id} (${t.currency})`).join(', ')} outside the books' currency without booking the conversion`);
+      if (foreign.length && fix.category !== 'fx_not_booked') fail('currency', `It includes money in ${[...new Set(foreign.map((t) => t.currency))].join(', ')} (${foreign.map((t) => t.id).join(', ')}) without booking the currency exchange.`);
     }
   }
   return { ok: failures.length === 0, failures };

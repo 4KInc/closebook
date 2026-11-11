@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>closebook</title>
-<meta name="description" content="Month-end close for PayPal: rules match, AI proposes, code checks, a person approves.">
+<meta name="description" content="Match your books to PayPal at month end. AI suggests the fixes, every fix is double-checked to the cent, and you approve.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%230f5a3c'/><path d='M7 22h18M7 25.5h18' stroke='%23fbfcf8' stroke-width='1.6'/><path d='M9 14l4 4 9-10' stroke='%23fbfcf8' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,49 +27,49 @@
   <div class="start-in">
     <div class="hero">
       <div class="hero-text">
-        <p class="eyebrow">Month-end close · PayPal clearing, account 1010</p>
+        <p class="eyebrow">Month-end close for your PayPal account</p>
         <h1>Close the month in PayPal, line&nbsp;by&nbsp;line.</h1>
-        <p class="lede">Match your books to PayPal. AI proposes the fixes, code checks them to the cent, you approve.</p>
+        <p class="lede">See where your books and PayPal disagree, and fix it. AI suggests each fix, every fix is double-checked to the cent, and nothing changes until you approve it.</p>
         <div class="resume" id="resume" hidden><button class="btn btn-ink" id="resumeBtn">Resume close</button><span id="resumeLabel"></span></div>
       </div>
-      <figure class="slip" aria-label="The demo month's tie-out">
-        <div class="slip-head"><span>Tie-out</span><span>Juniper Ceramics · Oct 2026</span></div>
-        <div class="slip-row"><span>PayPal net activity</span><b>$175.23</b></div>
-        <div class="slip-row"><span>Less: books, PayPal clearing</span><b>1,072.67</b></div>
-        <div class="slip-row total red"><span>Unreconciled difference</span><b>−$897.44</b></div>
-        <div class="slip-row"><span>Entries approved (39 exceptions)</span><b>897.44</b></div>
+      <figure class="slip" aria-label="The demo month at a glance">
+        <div class="slip-head"><span>At a glance</span><span>Juniper Ceramics · Oct 2026</span></div>
+        <div class="slip-row"><span>PayPal this month</span><b>$175.23</b></div>
+        <div class="slip-row"><span>Less: what your books say</span><b>1,072.67</b></div>
+        <div class="slip-row total red"><span>Difference</span><b>−$897.44</b></div>
+        <div class="slip-row"><span>Fixes approved (39 items)</span><b>897.44</b></div>
         <div class="slip-row total good"><span>Difference after close</span><b>$0.00</b></div>
         <span class="stamp slip-stamp" aria-hidden="true">Tied out</span>
       </figure>
     </div>
 
     <ol class="steps" aria-label="How a close runs">
-      <li><b>Rules match</b></li>
-      <li><b>AI proposes</b></li>
-      <li><b>Code checks</b></li>
+      <li><b>We match what we can</b></li>
+      <li><b>AI suggests a fix</b></li>
+      <li><b>Every fix is double-checked</b></li>
       <li><b>You approve</b></li>
     </ol>
 
     <div class="doors">
       <div class="door door-demo">
         <h2>The demo month</h2>
-        <p>A ceramics shop's October, with planted mistakes. No setup.</p>
+        <p>A small ceramics shop's October, with the everyday mistakes: missing fees, a refund nobody booked, a chargeback, a typo. Nothing to set up.</p>
         <button class="btn btn-ink" id="openDemo">Open the demo month</button>
       </div>
       <div class="door door-live">
-        <h2>A live PayPal month</h2>
-        <p>closebook's own sandbox account, November 2026, read live through Transaction Search and the Balances API, against <a href="/api/sandbox-books.csv">a four-line books file</a>. No setup.</p>
+        <h2>A real PayPal month</h2>
+        <p>A test shop's November, read straight from PayPal and matched against <a href="/api/sandbox-books.csv">its four-line books</a>. Nothing to set up.</p>
         <button class="btn btn-ink" id="openSandbox">Close November from PayPal</button>
         <p class="hint" id="sandboxHint" role="status"></p>
       </div>
       <div class="door door-own">
         <h2>Your own month</h2>
-        <p>Any month from this server's PayPal account, and your books as CSV: <code>date, amount</code>, optionally <code>id, memo, ref</code>; dates as YYYY-MM-DD. <a href="/api/demo-ledger.csv">Example CSV</a></p>
+        <p>Pick a month and upload your PayPal account from your books, saved from your spreadsheet or accounting app as a CSV file: a date and an amount on each line, with a description if you have one. <a href="/api/demo-ledger.csv">See an example</a></p>
         <div class="fields">
           <label for="period">Month<input type="month" id="period"></label>
-          <label for="csv">Books (CSV)<input type="file" id="csv" accept=".csv,text/csv"></label>
+          <label for="csv">Your books (CSV file)<input type="file" id="csv" accept=".csv,text/csv"></label>
         </div>
-        <button class="btn" id="openPaypal">Read PayPal and match</button>
+        <button class="btn" id="openPaypal">Match with PayPal</button>
         <p class="hint" id="paypalHint" role="status"></p>
       </div>
     </div>
@@ -77,13 +77,13 @@
 </section>
 
 <main id="app" hidden>
-  <section class="tieout" aria-label="Tie-out">
+  <section class="tieout" aria-label="The month at a glance">
     <div class="eq">
-      <div class="fig"><span class="k">PayPal net activity</span><span class="v" id="tPaypal"></span></div>
+      <div class="fig"><span class="k">PayPal this month</span><span class="v" id="tPaypal"></span></div>
       <span class="op" aria-hidden="true">−</span>
-      <div class="fig"><span class="k">Books · PayPal clearing</span><span class="v" id="tBooks"></span></div>
+      <div class="fig"><span class="k">Your books</span><span class="v" id="tBooks"></span></div>
       <span class="op" aria-hidden="true">=</span>
-      <div class="fig diff" id="tDiffTile"><span class="k">Unreconciled difference</span><span class="v" id="tDiff"></span><span class="stamp diff-stamp" aria-hidden="true">Tied out</span></div>
+      <div class="fig diff" id="tDiffTile"><span class="k">Difference</span><span class="v" id="tDiff"></span><span class="stamp diff-stamp" aria-hidden="true">Tied out</span></div>
     </div>
     <div class="ledger-ticks">
       <div class="ticks" id="ticks" aria-hidden="true"></div>
@@ -94,22 +94,22 @@
   </section>
 
   <section class="actions">
-    <button class="btn btn-ink" id="proposeAll">Propose fixes</button>
-    <button class="btn" id="approveRules">Approve all rule fixes that pass</button>
+    <button class="btn btn-ink" id="proposeAll">Suggest fixes</button>
+    <button class="btn" id="approveRules">Approve all PayPal fee fixes</button>
     <span class="status" id="status" role="status"></span>
     <span class="spacer"></span>
-    <a class="btn btn-quiet" id="exportCsv" href="/api/journal.csv" title="Double-entry journal: one row per line, approver and time, PayPal and book references">Export journal</a>
-    <a class="btn btn-quiet" id="exportAudit" href="/api/audit.csv" title="Every approval and rejection in order, with the reviewer's reasons">Export audit trail</a>
+    <a class="btn btn-quiet" id="exportCsv" href="/api/journal.csv" title="Your approved fixes as journal entries, ready for your accountant or accounting app">Download journal entries</a>
+    <a class="btn btn-quiet" id="exportAudit" href="/api/audit.csv" title="Every approval, change and rejection, in order, with your reasons">Download history</a>
     <button class="btn btn-quiet" id="restart">Start over</button>
   </section>
 
   <div class="book">
     <nav class="tabs" id="tabs" aria-label="Views">
-      <button data-tab="exceptions" class="on">Exceptions <b id="nEx"></b></button>
+      <button data-tab="exceptions" class="on">To review <b id="nEx"></b></button>
       <button data-tab="matched">Matched <b id="nMatched"></b></button>
       <button data-tab="paypal">PayPal activity <b id="nPaypal"></b></button>
-      <button data-tab="books">Books <b id="nBooks"></b></button>
-      <button data-tab="journal">Journal <b id="nJournal"></b></button>
+      <button data-tab="books">Your books <b id="nBooks"></b></button>
+      <button data-tab="journal">Journal entries <b id="nJournal"></b></button>
     </nav>
     <div class="work">
       <div class="gridwrap"><div id="grid" class="grid"></div></div>
@@ -118,7 +118,7 @@
   </div>
 </main>
 
-<footer class="foot">Read-only on PayPal: closebook uses Transaction Search and never moves money. Entries are proposals until a person approves them.</footer>
+<footer class="foot">closebook only reads your PayPal account. It never moves money, and no fix counts until you approve it.</footer>
 <script type="module" src="app.js"></script>
 </body>
 </html>

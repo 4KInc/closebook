@@ -61,7 +61,7 @@ test('no API key: Claude\'s recorded proposals are shown, checked now, and can b
   const ex = claudeExceptions(opened)[0];
   const r = await a.call(`/api/exceptions/${ex.id}/propose`, {});
   assert.equal(r.status, 200);
-  assert.match(r.data.fallback, /no API key/);
+  assert.match(r.data.fallback, /AI suggestions aren't switched on here/);
   const got = r.data.exceptions.find((e) => e.id === ex.id);
   assert.equal(got.fix.by, 'claude');
   assert.equal(got.fix.recorded.at, '2026-11-11T16:00:00Z');
@@ -84,7 +84,7 @@ test('session cap reached: the same recorded proposals', async () => {
   const a = browser(srv.base);
   const ex = claudeExceptions((await a.call('/api/close/demo', {})).data)[1];
   const r = await a.call(`/api/exceptions/${ex.id}/propose`, {});
-  assert.match(r.data.fallback, /used its live AI proposals/);
+  assert.match(r.data.fallback, /you've used this session's AI suggestions/);
   assert.equal(r.data.exceptions.find((e) => e.id === ex.id).check.ok, true);
   assert.equal(fakeCalls, before, 'no live call was made');
   delete process.env.CLAUDE_CALLS_PER_SESSION;
@@ -103,7 +103,7 @@ test('a live call that fails mid-close falls back for the remaining exceptions',
   assert.equal(live.fix.memo, 'live entry');
   for (const ex of [second, third]) {
     const r = (await a.call(`/api/exceptions/${ex.id}/propose`, {})).data;
-    assert.match(r.fallback, /live call failed/);
+    assert.match(r.fallback, /the AI didn't respond/);
     const got = r.exceptions.find((e) => e.id === ex.id);
     assert.ok(got.fix.recorded);
     assert.equal(got.check.ok, true);
@@ -120,7 +120,7 @@ test('no recording for the month: a plain answer that Claude is unavailable and 
     assert.equal(opened.recorded, false);
     const r = await a.call(`/api/exceptions/${claudeExceptions(opened)[0].id}/propose`, {});
     assert.equal(r.status, 503);
-    assert.match(r.data.error, /Claude is unavailable \(no API key on this server\).*Rule fixes still work/);
+    assert.match(r.data.error, /The AI isn't available right now \(AI suggestions aren't switched on here\).*PayPal fee fixes still work/);
     const fee = opened.exceptions.find((e) => e.source === 'fee');
     assert.equal((await a.call(`/api/exceptions/${fee.id}/propose`, {})).status, 200);
   } finally { process.env.CLOSEBOOK_RECORDINGS = recDir; clearRecordingCache(); }

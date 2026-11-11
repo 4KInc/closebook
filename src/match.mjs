@@ -92,8 +92,8 @@ export function hints(exceptions, byP, byL) {
       if (days(l.date, t.date) > WINDOW) continue;
       const amt = [t.net, t.gross].find((v) => transposed(v, l.amount));
       if (amt === undefined) continue;
-      add(eL.id, { kind: 'transposition', with: eP.id, detail: `booked ${fmt(l.amount)}; PayPal ${t.id} shows ${fmt(amt)}: two adjacent digits swapped` });
-      add(eP.id, { kind: 'transposition', with: eL.id, detail: `PayPal shows ${fmt(amt)}; book line ${l.id} has ${fmt(l.amount)}: two adjacent digits swapped` });
+      add(eL.id, { kind: 'transposition', with: eP.id, detail: `Your books say ${fmt(l.amount)}, and PayPal says ${fmt(amt)} (PayPal ID ${t.id}): two digits look swapped.` });
+      add(eP.id, { kind: 'transposition', with: eL.id, detail: `PayPal says ${fmt(amt)}, and line ${l.id} in your books says ${fmt(l.amount)}: two digits look swapped.` });
     }
   }
   return out;

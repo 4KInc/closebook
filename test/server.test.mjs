@@ -37,7 +37,7 @@ test('an upload over 2 MB or 20,000 rows is refused with a clear message', async
   const many = 'date,amount\n' + '2026-10-05,1\n'.repeat(20_001);
   r = await a.call('/api/close/paypal', { period: '2026-10', ledgerCsv: many });
   assert.equal(r.status, 400);
-  assert.match(r.data.error, /20,001 rows; closebook reads at most 20,000/);
+  assert.match(r.data.error, /20,001 lines, and closebook reads at most 20,000/);
   r = await a.call('/api/close/paypal', '{not json');
   assert.equal(r.status, 400);
 });

@@ -45,3 +45,6 @@ export const CATEGORIES = {
   not_in_paypal:             { needs: [], books: true, label: 'Book entry with no PayPal activity' },
   correction_not_booked:     { needs: ['correction', 'other'], label: 'PayPal account correction not booked' },
 };
+
+// The kinds in plain words, for messages a person reads.
+export const KIND_WORDS = { payment: 'a sale', refund: 'a refund', hold: 'a hold by PayPal', reversal: 'a chargeback', payout: 'a payment you sent', transfer: 'a transfer to your bank', fee: 'a PayPal fee', fx: 'a currency exchange', correction: 'a PayPal correction', other: 'other PayPal activity' };

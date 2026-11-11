@@ -41,7 +41,7 @@ test('every number in the memo comes from the close: tie-out, balances, categori
   assert.equal(d.flags.length, 2);
   assert.equal(d.approvals.length, d.counts.approved);
   const html = memoHtml(d);
-  for (const s of ['tied out to $0.00', '-$897.44', '$2,412.50', 'Every transaction accounted for', 'Untrusted text addressed to the AI', 'look at the note', '@media print']) assert.ok(html.includes(s), s);
+  for (const s of ['October 2026: your books match PayPal', '-$897.44', '$2,412.50', 'Every PayPal payment is accounted for', 'Text that tried to give the AI instructions', 'look at the note', '@media print']) assert.ok(html.includes(s), s);
 });
 
 test('a narrative is kept only if every number and ID in it is from the summary', () => {
@@ -55,7 +55,7 @@ test('a narrative is kept only if every number and ID in it is from the summary'
   assert.deepEqual(checkNarrative('Reviewed again in 2027.', d).problems, ['number 2027'], 'a date not in the summary is a number not in it');
   assert.equal(checkNarrative('', d).ok, false);
   const shown = memoHtml(d, { narrative: good });
-  assert.ok(shown.includes('class="narrative"') && shown.includes('code checked that every number'));
+  assert.ok(shown.includes('class="narrative"') && shown.includes('closebook checked that every number'));
   const dropped = memoHtml(d, { note: 'The AI\'s narrative was left out because it mentioned number 900.00' });
   assert.ok(!dropped.includes('class="narrative"') && dropped.includes('left out'));
 });
@@ -74,8 +74,8 @@ test('the memo route: no narrative without the AI, a checked one with it, none w
   let a = browser(srv.base);
   await a.call('/api/close/demo', {});
   let html = (await a.call('/api/memo.html')).data;
-  assert.match(html, /No narrative: live AI is unavailable \(no API key on this server\)/);
-  assert.match(html, /-\$897\.44 still to settle/);
+  assert.match(html, /No summary paragraph this time: the AI isn(?:'|&#39;)t available \(AI suggestions aren(?:'|&#39;)t switched on here\)/);
+  assert.match(html, /-\$897\.44 still to fix/);
 
   process.env.ANTHROPIC_API_KEY = 'test-key-not-real';
   process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${fake.address().port}`;

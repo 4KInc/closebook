@@ -5,6 +5,7 @@ import { fmt } from './money.mjs';
 import { CHART, CLEARING } from './check.mjs';
 import { CATEGORIES } from './codes.mjs';
 import { journal, summary } from './close.mjs';
+import { monthName, day } from '../public/view.mjs';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const moved = (lines) => lines.reduce((a, l) => a + (l.account === CLEARING ? (l.debit || 0) - (l.credit || 0) : 0), 0);
@@ -36,7 +37,7 @@ export function memoData(close, source) {
     },
     rejected: close.decisions.filter((d) => d.verdict === 'rejected').map((d) => ({ exception: d.exception, category: d.category, by: d.by, memo: d.memo, reason: d.reason, at: d.at })),
     flags: ex.filter((e) => e.flags?.length).map((e) => ({ exception: e.id, status: e.status, flags: e.flags, category: e.fix?.category ?? null })),
-    approvals: j.map((f) => ({ exception: f.exception, category: f.category, by: f.by + (f.recorded ? ' (recorded)' : '') + (f.editedBy ? `, corrected by ${f.editedBy}` : ''), reviewer: f.approvedBy, at: f.approvedAt, lines: f.lines, memo: f.memo, covers: f.covers })),
+    approvals: j.map((f) => ({ exception: f.exception, category: f.category, by: (f.by === 'claude' ? 'AI' : 'closebook (standard fix)') + (f.recorded ? ', saved suggestion' : '') + (f.editedBy ? ', changed by you' : ''), reviewer: f.approvedBy === 'reviewer' || !f.approvedBy ? 'you' : f.approvedBy, at: f.approvedAt, lines: f.lines, memo: f.memo, covers: f.covers })),
   };
 }
 
@@ -77,12 +78,12 @@ export function checkNarrative(text, d) {
 }
 
 const money = (c) => esc(fmt(c));
-const when = (t) => esc(String(t ?? '').replace('T', ' ').slice(0, 16));
+const when = (t) => esc(day(t));
 
 export function memoHtml(d, { narrative = null, note = null } = {}) {
   const b = d.balance, t = d.tieout, c = d.counts;
   const rows = (xs, f) => xs.map(f).join('');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Close memo · ${esc(d.period)}</title>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Month-end summary · ${esc(monthName(d.period))}</title>
 <style>
 :root { --ink: #16241d; --ink-2: #55675d; --rule: #cfdccb; --bar: #e9f2e6; --red: #b42318; --green: #0f5a3c; }
 * { box-sizing: border-box; }
@@ -104,56 +105,56 @@ tr:nth-child(even) td { background: var(--bar); }
 .tools { margin-top: 18px; } .tools button { font: 600 13px system-ui; padding: 6px 12px; border: 1px solid var(--ink); background: #fff; border-radius: 4px; cursor: pointer; }
 @media print { main { padding: 0; max-width: none; } .tools { display: none; } h2 { break-after: avoid; } tr { break-inside: avoid; } @page { margin: 14mm 12mm; } body { font-size: 11px; } }
 </style></head><body><main>
-<div class="eyebrow">closebook · close memo · PayPal clearing 1010</div>
-<h1>${esc(d.period)}: ${t.after === 0 ? 'tied out to $0.00' : `${money(t.after)} still to settle`}</h1>
-<div class="meta">${esc(d.source)} · ${esc(d.currency)} · written ${when(new Date().toISOString())} UTC</div>
-${narrative ? `<p class="narrative">${esc(narrative)}</p><div class="note">Narrative by the AI from the numbers below; code checked that every number and ID in it is one of them.</div>` : note ? `<div class="note">${esc(note)}</div>` : ''}
+<div class="eyebrow">closebook · month-end summary · your PayPal account</div>
+<h1>${esc(monthName(d.period))}: ${t.after === 0 ? 'your books match PayPal' : `${money(t.after)} still to fix`}</h1>
+<div class="meta">${esc(d.source)} · ${esc(d.currency)} · prepared ${when(new Date().toISOString())}</div>
+${narrative ? `<p class="narrative">${esc(narrative)}</p><div class="note">Written by the AI from the figures below. closebook checked that every number in it is one of them.</div>` : note ? `<div class="note">${esc(note)}</div>` : ''}
 
-<h2>Tie-out</h2>
+<h2>The month</h2>
 <table><tbody>
-<tr><td>PayPal net activity for the month</td><td class="n">${money(t.paypalNet)}</td></tr>
-<tr><td>Books, PayPal clearing, as uploaded</td><td class="n">${money(t.booksBefore)}</td></tr>
-<tr><td>Difference before the close</td><td class="n ${t.before ? 'neg' : 'zero'}">${money(t.before)}</td></tr>
-<tr><td>Approved entries, net effect on PayPal clearing</td><td class="n">${money(t.adjustments)}</td></tr>
-<tr class="total"><td>Difference after the close</td><td class="n ${t.after ? 'neg' : 'zero'}">${money(t.after)}</td></tr>
+<tr><td>Money in and out of PayPal this month</td><td class="n">${money(t.paypalNet)}</td></tr>
+<tr><td>What your books said, as uploaded</td><td class="n">${money(t.booksBefore)}</td></tr>
+<tr><td>Difference before any fixes</td><td class="n ${t.before ? 'neg' : 'zero'}">${money(t.before)}</td></tr>
+<tr><td>Approved fixes, total change to PayPal in your books</td><td class="n">${money(t.adjustments)}</td></tr>
+<tr class="total"><td>Difference now</td><td class="n ${t.after ? 'neg' : 'zero'}">${money(t.after)}</td></tr>
 </tbody></table>
-${b ? `<h2>PayPal's own balance (Balances API)</h2><table><tbody>
-<tr><td>Starting balance, as of ${when(b.openingAt)} UTC</td><td class="n">${money(b.opening)}</td></tr>
-<tr><td>Ending balance, as of ${when(b.closingAt)} UTC</td><td class="n">${money(b.closing)}</td></tr>
-<tr><td>Moved</td><td class="n">${money(b.moved)}</td></tr>
-<tr><td>Net of the transactions read (Transaction Search)</td><td class="n">${money(b.activity)}</td></tr>
-<tr class="total"><td>${b.gap === 0 ? 'Every transaction accounted for' : 'Not in the transactions read'}</td><td class="n ${b.gap ? 'neg' : 'zero'}">${money(b.gap)}</td></tr>
+${b ? `<h2>Your PayPal balance</h2><table><tbody>
+<tr><td>On ${when(b.openingAt)}</td><td class="n">${money(b.opening)}</td></tr>
+<tr><td>On ${when(b.closingAt)}</td><td class="n">${money(b.closing)}</td></tr>
+<tr><td>Change</td><td class="n">${money(b.moved)}</td></tr>
+<tr><td>Total of the PayPal payments we read</td><td class="n">${money(b.activity)}</td></tr>
+<tr class="total"><td>${b.gap === 0 ? 'Every PayPal payment is accounted for' : 'Not in the payments we read'}</td><td class="n ${b.gap ? 'neg' : 'zero'}">${money(b.gap)}</td></tr>
 </tbody></table>` : ''}
 
-<h2>Approved entries by category</h2>
-<table><thead><tr><th>Category</th><th class="n">Entries</th><th class="n">Debits</th><th class="n">Moved clearing</th></tr></thead><tbody>
-${rows(d.categories, (x) => `<tr><td>${esc(x.label)}</td><td class="n">${x.entries}</td><td class="n">${money(x.debits)}</td><td class="n">${money(x.moved)}</td></tr>`) || '<tr><td colspan="4">No entries approved yet.</td></tr>'}
+<h2>Approved fixes by type</h2>
+<table><thead><tr><th>Type of fix</th><th class="n">Fixes</th><th class="n">Debits</th><th class="n">Change to PayPal in your books</th></tr></thead><tbody>
+${rows(d.categories, (x) => `<tr><td>${esc(x.label)}</td><td class="n">${x.entries}</td><td class="n">${money(x.debits)}</td><td class="n">${money(x.moved)}</td></tr>`) || '<tr><td colspan="4">No fixes approved yet.</td></tr>'}
 <tr class="total"><td>Total</td><td class="n">${d.categories.reduce((a, x) => a + x.entries, 0)}</td><td class="n">${money(d.categories.reduce((a, x) => a + x.debits, 0))}</td><td class="n">${money(t.adjustments)}</td></tr>
 </tbody></table>
 
-<h2>Who proposed what</h2>
+<h2>Who suggested what</h2>
 <table><tbody>
-<tr><td>Exceptions found (after ${c.matched} lines matched by rule)</td><td class="n">${c.exceptions}</td></tr>
-<tr><td>Approved entries proposed by a rule</td><td class="n">${c.byRule}</td></tr>
-<tr><td>Approved entries proposed by the AI, live</td><td class="n">${c.byClaude}</td></tr>
-<tr><td>Approved entries from recorded AI proposals</td><td class="n">${c.recorded}</td></tr>
-<tr><td>Approved entries corrected by the reviewer</td><td class="n">${c.corrected}</td></tr>
-<tr><td>Exceptions settled by another entry</td><td class="n">${c.settledWithAnother}</td></tr>
-<tr><td>Proposals rejected</td><td class="n">${c.rejected}</td></tr>
-<tr class="total"><td>Exceptions still open</td><td class="n ${c.open ? 'neg' : 'zero'}">${c.open}</td></tr>
+<tr><td>Items to review (after ${c.matched} lines matched automatically)</td><td class="n">${c.exceptions}</td></tr>
+<tr><td>Approved standard fixes (PayPal fees)</td><td class="n">${c.byRule}</td></tr>
+<tr><td>Approved AI suggestions</td><td class="n">${c.byClaude}</td></tr>
+<tr><td>Approved saved AI suggestions</td><td class="n">${c.recorded}</td></tr>
+<tr><td>Approved fixes you changed first</td><td class="n">${c.corrected}</td></tr>
+<tr><td>Items fixed together with another</td><td class="n">${c.settledWithAnother}</td></tr>
+<tr><td>Suggestions you rejected</td><td class="n">${c.rejected}</td></tr>
+<tr class="total"><td>Items still to review</td><td class="n ${c.open ? 'neg' : 'zero'}">${c.open}</td></tr>
 </tbody></table>
 
-${d.flags.length ? `<h2>Untrusted text addressed to the AI</h2><table><thead><tr><th>Exception</th><th>Where</th><th>Text</th><th>Outcome</th></tr></thead><tbody>
+${d.flags.length ? `<h2>Text that tried to give the AI instructions</h2><table><thead><tr><th>Item</th><th>Where</th><th>Text</th><th>Outcome</th></tr></thead><tbody>
 ${rows(d.flags, (f) => rows(f.flags, (x) => `<tr><td class="n">${esc(f.exception)}</td><td>${esc(x.field)}</td><td class="flag">“${esc(x.text)}”</td><td>${esc(f.status)}${f.category ? `, ${esc(CATEGORIES[f.category]?.label ?? f.category)}` : ''}</td></tr>`))}
 </tbody></table>` : ''}
 
-${d.rejected.length ? `<h2>Rejected proposals</h2><table><thead><tr><th>When (UTC)</th><th>Exception</th><th>Proposed</th><th>Reason</th></tr></thead><tbody>
-${rows(d.rejected, (r) => `<tr><td class="n">${when(r.at)}</td><td class="n">${esc(r.exception)}</td><td>${esc(CATEGORIES[r.category]?.label ?? r.category)} by ${esc(r.by)}: ${esc(r.memo)}</td><td>${esc(r.reason || '(none given)')}</td></tr>`)}
+${d.rejected.length ? `<h2>Suggestions you rejected</h2><table><thead><tr><th>When</th><th>Item</th><th>Suggested</th><th>Your reason</th></tr></thead><tbody>
+${rows(d.rejected, (r) => `<tr><td class="n">${when(r.at)}</td><td class="n">${esc(r.exception)}</td><td>${esc(CATEGORIES[r.category]?.label ?? r.category)} by ${esc(r.by === 'claude' ? 'the AI' : 'closebook')}: ${esc(r.memo)}</td><td>${esc(r.reason || '(none given)')}</td></tr>`)}
 </tbody></table>` : ''}
 
-<h2>Approvals</h2>
-<table><thead><tr><th>When (UTC)</th><th>Exception</th><th>Entry</th><th>Proposed by</th><th>Approved by</th></tr></thead><tbody>
-${rows(d.approvals, (a) => `<tr><td class="n">${when(a.at)}</td><td class="n">${esc(a.exception)}${a.covers.length ? `<br><span class="meta">also settles ${esc(a.covers.join(', '))}</span>` : ''}</td><td>${esc(CATEGORIES[a.category]?.label ?? a.category)}<br><span class="meta">${esc(a.lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.account} ${fmt(l.debit || l.credit)}`).join(', '))}</span></td><td>${esc(a.by)}</td><td>${esc(a.reviewer)}</td></tr>`) || '<tr><td colspan="5">No approvals yet.</td></tr>'}
+<h2>Approved fixes</h2>
+<table><thead><tr><th>When</th><th>Item</th><th>Fix</th><th>Suggested by</th><th>Approved by</th></tr></thead><tbody>
+${rows(d.approvals, (a) => `<tr><td class="n">${when(a.at)}</td><td class="n">${esc(a.exception)}${a.covers.length ? `<br><span class="meta">also fixes ${esc(a.covers.join(', '))}</span>` : ''}</td><td>${esc(CATEGORIES[a.category]?.label ?? a.category)}<br><span class="meta">${esc(a.lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.account} ${fmt(l.debit || l.credit)}`).join(', '))}</span></td><td>${esc(a.by)}</td><td>${esc(a.reviewer)}</td></tr>`) || '<tr><td colspan="5">Nothing approved yet.</td></tr>'}
 </tbody></table>
 <div class="tools"><button onclick="window.print()">Print</button></div>
 </main></body></html>`;

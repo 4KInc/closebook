@@ -81,10 +81,10 @@ export const MAX_BOOK_LINES = 20_000;
 
 export function ledgerRows(csvText) {
   const [header, ...body] = parseCsv(csvText);
-  if (!header) throw new Error('the ledger CSV is empty');
-  if (body.length > MAX_BOOK_LINES) throw new Error(`the books CSV has ${body.length.toLocaleString('en-US')} rows; closebook reads at most ${MAX_BOOK_LINES.toLocaleString('en-US')} (one month of the PayPal clearing account)`);
+  if (!header) throw new Error('the file is empty.');
+  if (body.length > MAX_BOOK_LINES) throw new Error(`it has ${body.length.toLocaleString('en-US')} lines, and closebook reads at most ${MAX_BOOK_LINES.toLocaleString('en-US')}. Upload one month of your PayPal account only.`);
   const col = Object.fromEntries(header.map((h, i) => [h.trim().toLowerCase(), i]));
-  for (const need of ['date', 'amount']) if (!(need in col)) throw new Error(`the ledger CSV needs a "${need}" column (it has: ${header.map((h) => h.trim()).join(', ')})`);
+  for (const need of ['date', 'amount']) if (!(need in col)) throw new Error(`it needs a column named "${need}". Its columns are: ${header.map((h) => h.trim()).join(', ')}.`);
   // Every problem is collected with its row number, so a person can fix the file in one pass.
   const problems = [];
   const seen = new Set();
@@ -93,11 +93,11 @@ export function ledgerRows(csvText) {
     const id = (col.id != null && f[col.id]?.trim()) || `L${String(n + 1).padStart(3, '0')}`;
     const date = (f[col.date] ?? '').trim();
     const rawAmount = (f[col.amount] ?? '').trim();
-    if (!/^\d{4}-\d{2}-\d{2}/.test(date) || Number.isNaN(Date.parse(date.slice(0, 10)))) problems.push(`row ${row}: date "${date}" is not YYYY-MM-DD`);
+    if (!/^\d{4}-\d{2}-\d{2}/.test(date) || Number.isNaN(Date.parse(date.slice(0, 10)))) problems.push(`row ${row}: the date "${date}" needs to be written like 2026-10-05`);
     let amount = 0;
-    if (rawAmount === '') problems.push(`row ${row}: amount is blank`);
-    else { try { amount = cents(rawAmount); } catch { problems.push(`row ${row}: amount "${rawAmount}" is not a number of dollars and cents`); } }
-    if (seen.has(id)) problems.push(`row ${row}: id "${id}" is used twice`);
+    if (rawAmount === '') problems.push(`row ${row}: the amount is blank`);
+    else { try { amount = cents(rawAmount); } catch { problems.push(`row ${row}: the amount "${rawAmount}" isn't a number like 12.50 or -12.50`); } }
+    if (seen.has(id)) problems.push(`row ${row}: the id "${id}" is used twice`);
     seen.add(id);
     return {
       id,
@@ -107,6 +107,6 @@ export function ledgerRows(csvText) {
       ref: col.ref != null ? ((f[col.ref] ?? '').trim() || null) : null,
     };
   });
-  if (problems.length) throw new Error(`${problems.length} problem${problems.length > 1 ? 's' : ''} in the books CSV: ${problems.slice(0, 8).join('; ')}${problems.length > 8 ? `; and ${problems.length - 8} more` : ''}`);
+  if (problems.length) throw new Error(`${problems.length} thing${problems.length > 1 ? 's' : ''} to fix: ${problems.slice(0, 8).join('; ')}${problems.length > 8 ? `; and ${problems.length - 8} more` : ''}.`);
   return lines;
 }

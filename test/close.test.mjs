@@ -31,12 +31,12 @@ test('CSV parser handles quotes, commas and CRLF', () => {
 });
 
 test('the books CSV is refused with row numbers when dates, amounts or ids are wrong', () => {
-  assert.throws(() => ledgerRows('date,amount\n10/05/2026,12.00'), /row 2: date "10\/05\/2026" is not YYYY-MM-DD/);
-  assert.throws(() => ledgerRows('date,amount\n2026-10-05,'), /row 2: amount is blank/);
-  assert.throws(() => ledgerRows('date,amount\n2026-10-05,1-2'), /row 2: amount "1-2"/);
-  assert.throws(() => ledgerRows('id,date,amount\nA,2026-10-05,1\nA,2026-10-06,2'), /row 3: id "A" is used twice/);
+  assert.throws(() => ledgerRows('date,amount\n10/05/2026,12.00'), /row 2: the date "10\/05\/2026" needs to be written like 2026-10-05/);
+  assert.throws(() => ledgerRows('date,amount\n2026-10-05,'), /row 2: the amount is blank/);
+  assert.throws(() => ledgerRows('date,amount\n2026-10-05,1-2'), /row 2: the amount "1-2" isn't a number/);
+  assert.throws(() => ledgerRows('id,date,amount\nA,2026-10-05,1\nA,2026-10-06,2'), /row 3: the id "A" is used twice/);
   const e = (() => { try { ledgerRows('date,amount\nx,1\ny,2\nz,'); } catch (err) { return err.message; } })();
-  assert.match(e, /^4 problems/);
+  assert.match(e, /^4 things to fix/);
   assert.deepEqual(ledgerRows('id,date,amount\nA,2026-10-05T10:00:00Z,"(1,234.50)"').map((l) => [l.date, l.amount]), [['2026-10-05', -123450]]);
 });
 
@@ -163,7 +163,7 @@ test('an entry that cites part of another exception fails; citing all of it keep
   // The sale's PayPal transaction alone: would settle the fee exception for less than its gap.
   propose(close, refund.id, entry({ paypal: [...refund.paypal, sale.id], ledger: [] }));
   assert.equal(refund.check.ok, false);
-  assert.match(refund.check.failures.map((f) => f.detail).join(' '), new RegExp(`part of exception ${feeEx.id}`));
+  assert.match(refund.check.failures.map((f) => f.detail).join(' '), new RegExp(`part of another item \\(${feeEx.id}\\)`));
   // The whole fee exception: allowed, and the open gaps still add up to the difference.
   propose(close, refund.id, entry({ paypal: [...refund.paypal, sale.id], ledger: [...feeEx.ledger] }));
   assert.equal(refund.check.ok, true, JSON.stringify(refund.check.failures));
@@ -178,7 +178,7 @@ test('approval refuses a fix whose checks fail, and rejection records the reason
   const e = ex((x) => x.source === 'books');
   propose(close, e.id, { by: 'claude', category: 'not_in_paypal', cites: { paypal: [], ledger: e.ledger }, lines: [{ account: '1000', debit: 1, credit: 0 }, { account: CLEARING, debit: 0, credit: 1 }], memo: 'wrong amount' });
   assert.equal(e.check.ok, false);
-  assert.throws(() => approve(close, e.id), /fails its checks/);
+  assert.throws(() => approve(close, e.id), /hasn't passed its double-checks yet/);
   reject(close, e.id, 'that was a cash sale, move it to the bank');
   assert.equal(e.fix, null);
   assert.equal(close.decisions.at(-1).reason, 'that was a cash sale, move it to the bank');
@@ -242,7 +242,7 @@ test('the reviewer can correct an entry: the checks re-run, the change is audite
   edit(close, e.id, { lines: [{ account: '5100', debit: gross, credit: 0 }, { account: '6100', debit: fee, credit: 0 }, { account: CLEARING, debit: 0, credit: -e.gap }] });
   approve(close, e.id);
   assert.equal(journal(close).find((j) => j.exception === e.id).editedBy, 'reviewer');
-  assert.throws(() => edit(close, e.id, { lines: [] }), /already approved/);
+  assert.throws(() => edit(close, e.id, { lines: [] }), /already done/);
 });
 
 test('an entry that cites items another approval settled can be corrected to cite only what is still open', () => {

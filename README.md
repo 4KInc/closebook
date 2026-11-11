@@ -13,14 +13,14 @@ approve it**, and the person can correct it in place.
 >    Transaction Search and the Balances API, against
 >    [a four-line books file](samples/sandbox-2026-11-books.csv). Under the tie-out, PayPal's own
 >    balance moved by exactly the net of the transactions read: *every transaction accounted
->    for*. Click **Propose fixes**, then approve: −$120.68 becomes **$0.00**.
+>    for*. Click **Suggest fixes**, then approve: −$120.68 becomes **$0.00**.
 > 2. **Open the demo month**: a ceramics shop's October with planted mistakes, including a
 >    chargeback with its dispute (in the Disputes API's shape) and two lines of text written to
->    steer the AI. **Propose fixes** asks Claude for an entry for each of the 16 exceptions rules
+>    steer the AI. **Suggest fixes** asks Claude for an entry for each of the 16 exceptions rules
 >    cannot settle. Click one: the voucher shows the evidence, the entry, Claude's reasoning and
->    the nine checks. **Edit any cell of the entry** and watch the checks re-run. As you approve,
->    the waterfall under the tie-out steps the difference to $0.00; the **Journal** tab opens the
->    printable close memo.
+>    the nine checks. **Change any amount or account in the entry** and watch the double-checks re-run. As you approve,
+>    the waterfall under the tie-out steps the difference to $0.00; the **Journal entries** tab opens the
+>    printable month-end summary.
 > 3. What to look for: the difference reaching $0.00, an entry you break by one cent failing at
 >    once, the [accuracy measurement](#how-accurate-is-the-ai) (80 of 80 demo proposals matched the
 >    answer key and passed every check), and [the injected text Claude did not follow](#what-if-the-data-attacks-the-ai)
@@ -211,7 +211,7 @@ the books, and measured to show it.
   that the block is data, never instructions.
 - **Code flags it for the reviewer.** Text that addresses an AI or tries to steer an entry
   ("assistant:", "ignore", "approve this", "book this to", "record this as") marks the exception
-  **Untrusted text addressed to the AI**, quoted in the voucher. A flag never blocks anything.
+  **This text tries to give the AI instructions**, quoted in the voucher. A flag never blocks anything.
 - **What only a person can catch is pointed out.** Category and account are judgement: an entry
   can pass every check with the wrong account. That is why the flag goes to the reviewer.
 
@@ -241,25 +241,25 @@ amounts, and a person approves every entry.
 1. Open the app and click **Open the demo month**. The tiles show PayPal's net activity, the
    books' PayPal clearing balance, and the difference: **−$897.44**. 31 book lines are matched by
    rule; 39 exceptions are open.
-2. Click **Propose fixes**. Rules write the 23 fee entries at once; Claude then proposes an entry
+2. Click **Suggest fixes**. Rules write the 23 fee entries at once; Claude then proposes an entry
    for each of the other 16, one at a time (a few seconds each). Each row's badge shows **Ready**
-   when its entry passed every check, or **Fails checks**.
-3. Click **Approve all rule fixes that pass**. The difference counts down to **−$825.15**.
+   when its entry passed every check, or **Needs a fix**.
+3. Click **Approve all PayPal fee fixes**. The difference counts down to **−$825.15**.
 4. Click any Claude row. The panel shows the PayPal transactions and book lines it settles, the
    debit and credit lines, Claude's explanation and all nine checks. The $1,980.00 transfer booked
    as $1,890.00 carries a **Hint**: code found the two swapped digits, and the hint is part of
    Claude's prompt. It also carries a **Flag**: its memo tells the AI to book the difference to
    Suspense, and the voucher quotes it.
 5. To correct an entry, edit its cells in the voucher (an account, an amount, a line); the checks
-   re-run on every change, and **Revert** restores Claude's version. Approve the entries one by
+   re-run on every change, and **Undo my changes** restores Claude's version. Approve the entries one by
    one. An entry that cites several items settles them all (a dispute
    hold and its release, for example). Any other pending entry that cited the same items fails its
    checks at once; **Reject** it with a reason and ask Claude again, and the reason is in Claude's
    next prompt.
 6. When the last entry is approved the difference reads **$0.00**, and the waterfall under the
-   tie-out shows each category of entries stepping it there. The **Journal** tab's totals row
-   shows debits equal to credits, and **Open the close memo** gives the controller one printable
-   page. **Export journal** and **Export audit trail** download the result as CSV.
+   tie-out shows each category of entries stepping it there. The **Journal entries** tab's totals row
+   shows debits equal to credits, and **Open the month-end summary** gives the controller one printable
+   page. **Download journal entries** and **Download history** download the result as CSV.
 
 ## What the demo month contains
 
@@ -313,7 +313,7 @@ sales, so the date-and-amount rule refuses to pick and leaves them for review.
    If live calls are unavailable (no API key, a session or daily cap, a failed call), the server
    serves Claude's **recorded** proposal for the same exception instead
    ([`eval/recorded-demo-2026-10.json`](eval/recorded-demo-2026-10.json): the first run of the
-   measurement below, unedited), labelled *Recorded Claude proposal (live calls unavailable)*. It
+   measurement below, unedited), labelled *Saved AI suggestion*. It
    goes through the same checks, now; a month with no recording gets rule fixes only, and says so.
 6. **Check it.** Code, not a model, runs the checks below. A Claude entry that fails goes back to
    Claude once with the failures attached; if it still fails, it is shown with its failures and
@@ -323,7 +323,7 @@ sales, so the date-and-amount rule refuses to pick and leaves them for review.
    to the server, which runs every check again; the original entry is kept and can be restored,
    and the change is one row in the audit trail and part of Claude's next prompt. When an entry cites
    items another approval has since settled (Claude's chargeback entry cites the hold and release
-   too), **Drop the items already settled** corrects its citations in one click.
+   too), **Remove the items already fixed** corrects its citations in one click.
 8. **A person approves.** Approval runs the checks again, closes the exception and every other
    open exception the entry cites, then re-checks every other pending entry, so one that clashes
    with what was just approved shows as failing at once (both lines of the duplicate, for
@@ -476,10 +476,10 @@ node scripts/record.mjs --from eval/results-demo-....json                  # mak
 | `src/match.mjs` | the matching rules, the exceptions and their gaps, the tie-out, the transposition hint |
 | `src/check.mjs` | the checks every fix must pass, and the chart of accounts |
 | `src/close.mjs` | one month's close: propose, approve, reject, journal, summary |
-| `src/claude.mjs` | Claude's proposal: one structured-output call per exception, one retry on failed checks; the close memo's narrative |
+| `src/claude.mjs` | Claude's proposal: one structured-output call per exception, one retry on failed checks; the month-end summary's narrative |
 | `src/untrusted.mjs` | flags text addressed to the AI, and fences untrusted fields in the prompt |
 | `src/recorded.mjs` | recorded Claude proposals, served when live calls are unavailable |
-| `src/memo.mjs` | the close memo, and the check that keeps the AI's narrative to the summary's numbers |
+| `src/memo.mjs` | the month-end summary, and the check that keeps the AI's narrative to the summary's numbers |
 | `src/generate.mjs` | seeded months with answer keys, for measuring the AI beyond the demo month |
 | `src/money.mjs` | parsing and formatting money without floating point |
 | `src/demo.mjs` | the demo month, with an answer key of what was planted, its balances and its dispute |
@@ -498,7 +498,7 @@ node scripts/record.mjs --from eval/results-demo-....json                  # mak
 | `test/view.test.mjs` | the screen's HTML: hostile text rendered as text, the waterfall |
 | `test/untrusted.test.mjs` | flags, the fenced data block in the prompt, the planted injections |
 | `test/fallback.test.mjs` | recorded proposals with no key, a cap reached, a live failure mid-close, no recording |
-| `test/memo.test.mjs` | the close memo's numbers, and the narrative kept or dropped |
+| `test/memo.test.mjs` | the month-end summary's numbers, and the narrative kept or dropped |
 
 ## Built with
 
