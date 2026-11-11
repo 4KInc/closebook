@@ -49,7 +49,7 @@ The memo is one line for the general ledger. The explanation is two or three pla
 function itemTable(close, st) {
   const rows = [];
   for (const e of st.open.values()) {
-    for (const id of e.paypal) { const t = st.byP.get(id); rows.push(`PayPal ${t.id} | ${t.date} | ${t.code} (${t.kind}) | gross ${t.gross} fee ${t.fee} net ${t.net} | ${t.subject ?? ''}${t.ref ? ` | refers to ${t.ref}` : ''}${t.invoice ? ` | invoice ${t.invoice}` : ''} | exception ${e.id}`); }
+    for (const id of e.paypal) { const t = st.byP.get(id); rows.push(`PayPal ${t.id} | ${t.date} | ${t.code} (${t.kind}) | gross ${t.gross} fee ${t.fee} net ${t.net} | ${t.subject ?? ''}${t.payer ? ` | payer ${t.payer}` : ''}${t.ref ? ` | refers to ${t.ref}` : ''}${t.invoice ? ` | invoice ${t.invoice}` : ''} | exception ${e.id}`); }
     for (const id of e.ledger) { const l = st.byL.get(id); rows.push(`Book ${l.id} | ${l.date} | amount ${l.amount} | ${l.memo}${l.ref ? ` | ref ${l.ref}` : ''} | exception ${e.id}`); }
   }
   return [...new Set(rows)].join('\n');
@@ -63,7 +63,7 @@ function related(close, ex, st) {
 
 export function prompt(close, ex) {
   const st = stateOf(close);
-  const decisions = close.decisions.filter((d) => d.by === 'claude' || d.verdict === 'rejected').slice(-20)
+  const decisions = close.decisions.filter((d) => d.by === 'claude' || d.verdict === 'rejected' || d.verdict === 'edited').slice(-20)
     .map((d) => `- ${d.verdict}: ${d.category} "${d.memo}"${d.reason ? ` (reviewer: ${d.reason})` : ''}`).join('\n') || '(none yet)';
   const own = [...ex.paypal.map((id) => `PayPal ${id}`), ...ex.ledger.map((id) => `Book ${id}`)].join(', ');
   return `Period ${close.period}, currency ${close.currency}.
