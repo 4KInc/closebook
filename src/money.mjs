@@ -2,7 +2,9 @@
 
 export function cents(value) {
   if (value == null || value === '') return 0;
-  if (typeof value === 'number') return Math.round(value * 100);
+  // A number goes through its decimal text, so a float that is not a whole number of cents
+  // (0.1 + 0.2) is refused instead of rounded.
+  if (typeof value === 'number') { if (!Number.isFinite(value)) throw new Error(`not an amount: ${value}`); return cents(String(value)); }
   const s = String(value).trim().replace(/[$,\s]/g, '');
   const neg = /^\(.*\)$/.test(s) || s.startsWith('-');
   const digits = s.replace(/[()\-+]/g, '');

@@ -83,7 +83,7 @@ ${itemTable(close, st)}
 Settled transactions these items refer to:
 ${related(close, ex, st)}
 
-Exception to fix: ${ex.id} (${own}), gap ${ex.gap} cents (${fmt(ex.gap)}).${ex.rejected?.length ? `\n\nThe reviewer rejected an earlier fix for this exception: ${ex.rejected.map((r) => `"${r.fix.memo}"${r.reason ? `, because: ${r.reason}` : ''}`).join('; ')}.` : ''}`;
+Exception to fix: ${ex.id} (${own}), gap ${ex.gap} cents (${fmt(ex.gap)}).${ex.hints?.length ? `\n\nFound by code (a pointer to check, not a decision): ${ex.hints.map((h) => `${h.kind} with ${h.with}: ${h.detail}`).join('; ')}.` : ''}${ex.rejected?.length ? `\n\nThe reviewer rejected an earlier fix for this exception: ${ex.rejected.map((r) => `"${r.fix.memo}"${r.reason ? `, because: ${r.reason}` : ''}`).join('; ')}.` : ''}`;
 }
 
 function toFix(ex, out) {

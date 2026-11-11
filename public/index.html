@@ -51,7 +51,8 @@
     <button id="approveRules">Approve all rule fixes that pass</button>
     <span class="spacer"></span>
     <span class="status" id="status"></span>
-    <a class="button" id="exportCsv" href="/api/journal.csv">Export journal CSV</a>
+    <a class="button" id="exportCsv" href="/api/journal.csv" title="Double-entry journal: one row per line, debit and credit columns, approver and time, PayPal and book references">Export journal (CSV)</a>
+    <a class="button" id="exportAudit" href="/api/audit.csv" title="Every approval and rejection in order, with the reviewer's reasons">Export audit trail (CSV)</a>
     <button class="ghost" id="restart">Start over</button>
   </section>
 

@@ -1,6 +1,6 @@
 // One month's close: match, open exceptions, fixes, checks, approvals. Plain data in, plain data
 // out, so the server can persist it as JSON and the tests can drive it directly.
-import { match, tieOut } from './match.mjs';
+import { match, tieOut, hints } from './match.mjs';
 import { check, CLEARING, CHART } from './check.mjs';
 
 export function openClose({ paypal, ledger, period, currency = 'USD', chart = CHART }) {
@@ -9,10 +9,11 @@ export function openClose({ paypal, ledger, period, currency = 'USD', chart = CH
   const foreign = paypal.filter((t) => t.currency !== currency && inPeriod(t.date));
   const books = ledger.filter((l) => inPeriod(l.date));
   const { matches, exceptions } = match(base, books);
+  const found = hints(exceptions, new Map(base.map((t) => [t.id, t])), new Map(books.map((l) => [l.id, l])));
   return {
     period, currency, chart,
     paypal: base, foreign, ledger: books, matches,
-    exceptions: exceptions.map((e) => ({ ...e, status: 'open', fix: null, check: null })),
+    exceptions: exceptions.map((e) => ({ ...e, hints: found.get(e.id) ?? [], status: 'open', fix: null, check: null })),
     decisions: [],
   };
 }
@@ -62,6 +63,7 @@ export function approve(close, exceptionId, by = 'reviewer') {
     if (e.status !== 'open') continue;
     if (e === ex || e.paypal.some((id) => citedP.has(id)) || e.ledger.some((id) => citedL.has(id))) {
       e.status = e === ex ? 'approved' : 'covered';
+      if (e === ex) { e.approvedAt = new Date().toISOString(); e.approvedBy = by; }
       if (e !== ex) e.coveredBy = ex.id;
     }
   }
@@ -69,7 +71,7 @@ export function approve(close, exceptionId, by = 'reviewer') {
   // sees at once which proposals no longer hold.
   const st = stateOf(close);
   for (const e of close.exceptions) if (e.status === 'open' && e.fix) e.check = check(e.fix, st, close.chart);
-  close.decisions.push({ exception: ex.id, verdict: 'approved', category: ex.fix.category, by: ex.fix.by, memo: ex.fix.memo, at: new Date().toISOString(), reviewer: by });
+  close.decisions.push({ exception: ex.id, verdict: 'approved', category: ex.fix.category, by: ex.fix.by, memo: ex.fix.memo, at: ex.approvedAt, reviewer: by });
   return ex;
 }
 
@@ -83,7 +85,7 @@ export function reject(close, exceptionId, reason = '') {
 }
 
 export function journal(close) {
-  return close.exceptions.filter((e) => e.status === 'approved').map((e) => ({ exception: e.id, ...e.fix }));
+  return close.exceptions.filter((e) => e.status === 'approved').map((e) => ({ exception: e.id, ...e.fix, approvedAt: e.approvedAt, approvedBy: e.approvedBy, covers: close.exceptions.filter((x) => x.coveredBy === e.id).map((x) => x.id) }));
 }
 
 export function summary(close) {

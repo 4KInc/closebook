@@ -1,7 +1,9 @@
 // closebook web server. Each browser gets its own close (cookie session, kept in memory).
 //   PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET  sandbox REST app with Transaction search enabled (optional)
 //   ANTHROPIC_API_KEY                        for Claude's proposals (optional; without it only rules propose)
+//   PAYPAL_ENVIRONMENT                       production to read a live account; sandbox otherwise
 //   PORT                                     default 8080
+// A .env file next to this one is loaded at startup if present (Node's own loader).
 //   CLAUDE_CALLS_PER_SESSION                 default 80
 //   CLAUDE_CALLS_PER_DAY                     server-wide cap for a public deploy, default 600
 import { createServer } from 'node:http';
@@ -13,10 +15,11 @@ import { demoMonth } from './src/demo.mjs';
 import { paypalRows, ledgerRows } from './src/normalize.mjs';
 import { openClose, ruleFix, propose, approve, reject, summary, journal } from './src/close.mjs';
 import { proposeWithClaude, MODEL } from './src/claude.mjs';
-import { fetchMonth, paypalConfigured } from './src/paypal.mjs';
+import { fetchMonth, paypalConfigured, probe, PayPalError } from './src/paypal.mjs';
 import { CATEGORIES } from './src/codes.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
+try { process.loadEnvFile(join(HERE, '.env')); } catch (e) { if (e.code !== 'ENOENT') console.warn(`[env] could not read .env: ${e.message}`); }
 const PUBLIC = join(HERE, 'public');
 const PORT = Number(process.env.PORT ?? 8080);
 const CLAUDE_LIMIT = Number(process.env.CLAUDE_CALLS_PER_SESSION ?? 80);
@@ -78,16 +81,35 @@ function view(s) {
   };
 }
 
+let paypalStatus = { ok: false, status: null, message: 'not checked yet' };
+
 function config() {
-  return { claude: claudeReady(), model: MODEL, paypal: paypalConfigured(), categories: Object.fromEntries(Object.entries(CATEGORIES).map(([k, v]) => [k, v.label])) };
+  return { claude: claudeReady(), model: MODEL, paypal: paypalConfigured(), paypalStatus, categories: Object.fromEntries(Object.entries(CATEGORIES).map(([k, v]) => [k, v.label])) };
 }
 
+const csv = (rows) => rows.map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n') + '\n';
+const dollars = (c) => (c ? (c / 100).toFixed(2) : '');
+
+// Double-entry journal: one row per line, debits and credits in separate columns, every entry
+// balanced, with who proposed it, who approved it and when, and the PayPal and book references.
 function journalCsv(close) {
-  const rows = [['entry', 'exception', 'date', 'account', 'account_name', 'debit', 'credit', 'memo', 'proposed_by', 'paypal_ids', 'book_lines']];
+  const rows = [['entry_id', 'entry_date', 'account', 'account_name', 'debit', 'credit', 'currency', 'memo', 'category', 'proposed_by', 'approved_by', 'approved_at', 'exception', 'also_settles', 'paypal_transaction_ids', 'book_line_ids']];
   journal(close).forEach((f, i) => {
-    for (const l of f.lines) rows.push([`JE-${String(i + 1).padStart(3, '0')}`, f.exception, `${close.period}-01`, l.account, close.chart[l.account], (l.debit / 100).toFixed(2), (l.credit / 100).toFixed(2), f.memo, f.by, f.cites.paypal.join(' '), f.cites.ledger.join(' ')]);
+    for (const l of f.lines) rows.push([`JE-${close.period}-${String(i + 1).padStart(3, '0')}`, lastDay(close.period), l.account, close.chart[l.account], dollars(l.debit), dollars(l.credit), close.currency, f.memo, f.category, f.by === 'claude' ? `claude (${f.model ?? ''})` : f.by, f.approvedBy, f.approvedAt, f.exception, f.covers.join(' '), f.cites.paypal.join(' '), f.cites.ledger.join(' ')]);
   });
-  return rows.map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n') + '\n';
+  return csv(rows);
+}
+
+// Audit trail: every decision in order, with the checks the entry passed at that moment.
+function auditCsv(close) {
+  const rows = [['at', 'exception', 'decision', 'category', 'proposed_by', 'reviewer', 'memo', 'reason']];
+  for (const d of close.decisions) rows.push([d.at, d.exception, d.verdict, d.category, d.by, d.reviewer ?? '', d.memo, d.reason ?? '']);
+  return csv(rows);
+}
+
+function lastDay(period) {
+  const [y, m] = period.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
 }
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.csv': 'text/csv' };
@@ -106,6 +128,7 @@ async function staticFile(req, res) {
 async function route(req, res) {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
+  if (p === '/health' || p === '/api/health') return json(res, 200, { ok: true, claude: claudeReady(), paypal: paypalConfigured() ? (paypalStatus.ok ? 'ok' : 'error') : 'off', uptime_s: Math.round(process.uptime()) });
   if (!p.startsWith('/api/')) return staticFile(req, res);
   const s = session(req, res);
 
@@ -121,8 +144,16 @@ async function route(req, res) {
   if (req.method === 'POST' && p === '/api/close/paypal') {
     const { period, ledgerCsv } = await body(req);
     if (!paypalConfigured()) return json(res, 400, { error: 'PayPal credentials are not configured on this server' });
-    const ledger = ledgerRows(ledgerCsv ?? '');
-    const details = await fetchMonth(period);
+    let ledger;
+    try { ledger = ledgerRows(ledgerCsv ?? ''); } catch (e) { return json(res, 400, { error: `The books CSV could not be read: ${e.message}` }); }
+    let details;
+    try { details = await fetchMonth(period); }
+    catch (e) {
+      console.error(`[paypal] ${period}: ${e.message}`);
+      if (e instanceof PayPalError) { if (e.status === 403 || e.status === 401) paypalStatus = { ok: false, status: e.status, message: e.message }; return json(res, 502, { error: e.message }); }
+      return json(res, 400, { error: e.message });
+    }
+    if (!details.length) return json(res, 404, { error: `PayPal returned no balance-affecting transactions for ${period}. New transactions can take up to three hours to appear in Transaction Search.` });
     s.close = openClose({ paypal: paypalRows(details), ledger, period });
     s.source = { kind: 'paypal', label: `PayPal sandbox, ${period}` };
     return json(res, 200, view(s));
@@ -139,6 +170,11 @@ async function route(req, res) {
   if (req.method === 'GET' && p === '/api/journal.csv') {
     res.writeHead(200, { 'content-type': 'text/csv', 'content-disposition': `attachment; filename="closebook-${c.period}-journal.csv"` });
     return res.end(journalCsv(c));
+  }
+
+  if (req.method === 'GET' && p === '/api/audit.csv') {
+    res.writeHead(200, { 'content-type': 'text/csv', 'content-disposition': `attachment; filename="closebook-${c.period}-audit.csv"` });
+    return res.end(auditCsv(c));
   }
 
   if (req.method === 'POST' && p === '/api/rules') {
@@ -172,6 +208,22 @@ async function route(req, res) {
   json(res, 404, { error: 'not found' });
 }
 
-createServer((req, res) => {
+const server = createServer((req, res) => {
   route(req, res).catch((e) => { console.error(e); if (!res.headersSent) json(res, e.status ?? 500, { error: e.message }); });
-}).listen(PORT, () => console.log(`closebook on http://localhost:${PORT}  claude:${claudeReady() ? MODEL : 'off'}  paypal:${paypalConfigured() ? 'on' : 'off'}`));
+}).listen(PORT, async () => {
+  console.log(`closebook on http://localhost:${PORT}  claude:${claudeReady() ? MODEL : 'off'}  paypal:${paypalConfigured() ? 'on' : 'off'}`);
+  if (paypalConfigured()) {
+    paypalStatus = await probe();
+    console[paypalStatus.ok ? 'log' : 'warn'](`[paypal] startup check: ${paypalStatus.message}`);
+  } else paypalStatus = { ok: false, status: null, message: 'PayPal credentials are not set; only the demo month is available.' };
+});
+
+// Render and most hosts send SIGTERM before stopping an instance: finish requests in flight, then exit.
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.once(sig, () => {
+    console.log(`[server] ${sig}: closing`);
+    server.close(() => process.exit(0));
+    server.closeIdleConnections?.();
+    setTimeout(() => process.exit(0), 10_000).unref();
+  });
+}

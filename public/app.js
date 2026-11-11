@@ -30,10 +30,27 @@ async function api(path, opts = {}) {
 
 function setStatus(t) { $('status').textContent = t; }
 
+// The difference counts to its new value in whole cents. Off under reduced motion.
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+function countTo(el, to) {
+  const from = Number(el.dataset.cents ?? to);
+  el.dataset.cents = to;
+  cancelAnimationFrame(el._raf);
+  if (from === to || reduced.matches) { el.textContent = fmt(to); return; }
+  const t0 = performance.now(), ms = 700;
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / ms), e = 1 - (1 - k) ** 3;
+    el.textContent = fmt(Math.round(from + (to - from) * e));
+    if (k < 1) el._raf = requestAnimationFrame(step);
+  };
+  el._raf = requestAnimationFrame(step);
+}
+
 function render() {
   if (!state?.close && !state?.summary) {
     $('start').hidden = false; $('app').hidden = true; $('source').textContent = '';
-    $('paypalHint').textContent = state?.config?.paypal ? '' : 'This server has no PayPal credentials configured, so only the demo month is available here.';
+    const ps = state?.config?.paypalStatus;
+    $('paypalHint').textContent = !state?.config?.paypal ? 'This server has no PayPal credentials configured, so only the demo month is available here.' : ps && !ps.ok && ps.status ? ps.message : '';
     $('openPaypal').disabled = !state?.config?.paypal;
     return;
   }
@@ -42,7 +59,7 @@ function render() {
   $('source').textContent = `${state.source.label} · Claude: ${state.config.claude ? state.config.model : 'off (rules only)'}`;
   $('tPaypal').textContent = fmt(s.paypalNet);
   $('tBooks').textContent = fmt(s.books);
-  $('tDiff').textContent = fmt(s.difference);
+  countTo($('tDiff'), s.difference);
   $('tDiffTile').className = `tile diff ${s.difference === 0 ? 'good' : 'bad'}`;
   const ready = state.exceptions.filter((e) => e.status === 'open' && e.check?.ok).length;
   const done = s.approved + s.covered;
@@ -57,13 +74,15 @@ function render() {
   drawDetail();
 }
 
+const badge = (cls, text, title = '') => `<span class="badge ${cls}"${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</span>`;
 const statusChip = (e) => {
-  if (e.status === 'approved') return '<span class="chip good">approved</span>';
-  if (e.status === 'covered') return `<span class="chip good">settled by ${esc(e.coveredBy)}</span>`;
-  if (e.pending) return '<span class="chip info">Claude is working…</span>';
-  if (!e.fix) return '<span class="chip">open</span>';
-  return e.check.ok ? '<span class="chip info">ready to approve</span>' : '<span class="chip bad">fails checks</span>';
+  if (e.status === 'approved') return badge('good', 'Approved');
+  if (e.status === 'covered') return badge('good', 'Settled', `settled by ${e.coveredBy}`);
+  if (e.pending) return badge('info pulse', 'Claude…');
+  if (!e.fix) return badge('', 'Exception');
+  return e.check.ok ? badge('info', 'Ready') : badge('bad', 'Fails checks');
 };
+const byBadge = (e) => (!e.fix ? '' : e.fix.by === 'claude' ? badge('claude', 'Claude') : badge('rule', 'Rule'));
 
 function itemsLabel(e) {
   const byP = new Map(state.paypal.map((t) => [t.id, t]));
@@ -71,7 +90,12 @@ function itemsLabel(e) {
   return [...e.paypal.map((id) => { const t = byP.get(id); return `PayPal ${t.code} ${t.subject ?? ''}`; }), ...e.ledger.map((id) => `Book ${id}: ${byL.get(id).memo}`)].join(' · ');
 }
 
-const moneyCol = (field, headerName) => ({ field, headerName, type: 'rightAligned', width: 120, valueFormatter: (p) => fmt(p.value), cellClass: (p) => (p.value < 0 ? 'money neg' : 'money') });
+const moneyCol = (field, headerName, width = 124) => ({
+  field, headerName, width, type: 'rightAligned', filter: 'agNumberColumnFilter',
+  valueFormatter: (p) => fmt(p.value),
+  cellClass: (p) => (p.value < 0 ? 'money neg' : 'money'),
+});
+const textCol = (field, headerName, more = {}) => ({ field, headerName, filter: 'agTextColumnFilter', ...more });
 
 function columnsAndRows() {
   if (tab === 'exceptions') {
@@ -86,17 +110,18 @@ function columnsAndRows() {
       // The cell shows a chip built from several fields; give it a value that changes with them
       // so AG Grid refreshes the cell.
       statusKey: `${e.status}|${e.pending ? 'p' : ''}|${e.fix ? (e.check.ok ? 'ok' : 'fail') : ''}|${e.coveredBy ?? ''}`,
+      statusText: e.status === 'approved' ? 'approved' : e.status === 'covered' ? 'settled' : !e.fix ? 'exception' : e.check.ok ? 'ready' : 'fails checks',
     }));
     return {
       rows,
       cols: [
-        { field: 'statusKey', headerName: 'Status', width: 170, cellRenderer: (p) => statusChip(p.data), sort: 'asc', comparator: (a, b, na, nb) => na.data.order - nb.data.order },
-        { field: 'kind', headerName: 'Found', width: 120 },
+        { field: 'statusKey', headerName: 'Status', width: 130, pinned: 'left', cellRenderer: (p) => (p.node.rowPinned ? '' : statusChip(p.data)), sort: 'asc', comparator: (a, b, na, nb) => (na?.data?.order ?? 9) - (nb?.data?.order ?? 9), filter: 'agTextColumnFilter', filterValueGetter: (p) => p.data.statusText },
+        textCol('kind', 'Found', { width: 120 }),
         moneyCol('gap', 'Gap'),
-        { field: 'what', headerName: 'Items', flex: 2, minWidth: 220, tooltipField: 'what' },
-        { field: 'category', headerName: 'Proposed fix', flex: 1, minWidth: 170 },
-        { field: 'by', headerName: 'By', width: 80 },
-        { field: 'entry', headerName: 'Entry', flex: 1.4, minWidth: 220, tooltipField: 'entry' },
+        textCol('what', 'Items', { flex: 2, minWidth: 220, tooltipField: 'what', cellRenderer: (p) => (p.node.rowPinned ? esc(p.value) : `${p.data.hints?.length ? badge('warn', 'Hint', p.data.hints.map((h) => h.detail).join('; ')) + ' ' : ''}${esc(p.value)}`) }),
+        textCol('category', 'Proposed fix', { flex: 1, minWidth: 170 }),
+        { field: 'by', headerName: 'By', width: 92, cellRenderer: (p) => (p.node.rowPinned ? '' : byBadge(p.data)), filter: 'agTextColumnFilter' },
+        textCol('entry', 'Entry', { flex: 1.4, minWidth: 220, tooltipField: 'entry', cellClass: 'mono' }),
       ],
     };
   }
@@ -105,34 +130,53 @@ function columnsAndRows() {
     const byL = new Map(state.ledger.map((l) => [l.id, l]));
     return {
       rows: state.matches.map((m) => { const t = byP.get(m.paypal), l = byL.get(m.ledger); return { date: t.date, paypal: t.id, code: t.code, subject: t.subject, gross: t.gross, net: t.net, line: l.id, memo: l.memo, amount: l.amount, rule: m.rule === 'reference' ? 'reference' : 'amount + date', basis: m.basis }; }),
-      cols: [{ field: 'date', width: 110 }, { field: 'paypal', headerName: 'PayPal ID', width: 190 }, { field: 'code', width: 80 }, { field: 'subject', flex: 1 }, moneyCol('gross', 'Gross'), moneyCol('net', 'Net'), { field: 'line', headerName: 'Book line', width: 100 }, { field: 'memo', flex: 1 }, moneyCol('amount', 'Booked'), { field: 'rule', width: 130 }, { field: 'basis', headerName: 'Booked at', width: 100 }],
+      cols: [{ field: 'status', headerName: 'Status', width: 110, cellRenderer: (p) => (p.node.rowPinned ? '' : badge('good', 'Matched')) }, textCol('date', 'Date', { width: 110 }), textCol('paypal', 'PayPal ID', { width: 190, cellClass: 'mono' }), textCol('code', 'Code', { width: 84, cellClass: 'mono' }), textCol('subject', 'Subject', { flex: 1 }), moneyCol('gross', 'Gross'), moneyCol('net', 'Net'), textCol('line', 'Book line', { width: 100, cellClass: 'mono' }), textCol('memo', 'Memo', { flex: 1 }), moneyCol('amount', 'Booked'), textCol('rule', 'Rule', { width: 130 }), textCol('basis', 'Booked at', { width: 100 })],
     };
   }
   if (tab === 'paypal') {
     return {
       rows: state.paypal,
-      cols: [{ field: 'date', width: 110 }, { field: 'id', headerName: 'Transaction ID', width: 190 }, { field: 'code', width: 80 }, { field: 'kind', width: 100 }, { field: 'subject', flex: 1 }, { field: 'payer', width: 140 }, moneyCol('gross', 'Gross'), moneyCol('fee', 'Fee'), moneyCol('net', 'Net'), { field: 'invoice', width: 110 }, { field: 'ref', headerName: 'Refers to', width: 190 }],
+      cols: [textCol('date', 'Date', { width: 110 }), textCol('id', 'Transaction ID', { width: 190, cellClass: 'mono' }), textCol('code', 'Code', { width: 84, cellClass: 'mono' }), textCol('kind', 'Kind', { width: 104 }), textCol('subject', 'Subject', { flex: 1 }), textCol('payer', 'Payer', { width: 140 }), moneyCol('gross', 'Gross'), moneyCol('fee', 'Fee', 104), moneyCol('net', 'Net'), textCol('invoice', 'Invoice', { width: 110, cellClass: 'mono' }), textCol('ref', 'Refers to', { width: 190, cellClass: 'mono' })],
     };
   }
   if (tab === 'books') {
-    return { rows: state.ledger, cols: [{ field: 'id', width: 90 }, { field: 'date', width: 110 }, { field: 'memo', flex: 1 }, { field: 'ref', width: 120 }, moneyCol('amount', 'Amount')] };
+    return { rows: state.ledger, cols: [textCol('id', 'Line', { width: 90, cellClass: 'mono' }), textCol('date', 'Date', { width: 110 }), textCol('memo', 'Memo', { flex: 1 }), textCol('ref', 'Ref', { width: 140, cellClass: 'mono' }), moneyCol('amount', 'Amount')] };
   }
   const rows = [];
   state.exceptions.filter((e) => e.status === 'approved').forEach((e, i) => e.fix.lines.forEach((l) => rows.push({ entry: `JE-${String(i + 1).padStart(3, '0')}`, account: `${l.account} ${state.chart[l.account] ?? ''}`, debit: l.debit || null, credit: l.credit || null, memo: e.fix.memo, by: e.fix.by === 'claude' ? 'Claude' : 'rule', exception: e.id })));
-  return { rows, cols: [{ field: 'entry', width: 90 }, { field: 'account', width: 190 }, moneyCol('debit', 'Debit'), moneyCol('credit', 'Credit'), { field: 'memo', flex: 1, tooltipField: 'memo' }, { field: 'by', width: 80 }, { field: 'exception', width: 200 }] };
+  return { rows, cols: [textCol('entry', 'Entry', { width: 96, cellClass: 'mono' }), textCol('account', 'Account', { width: 200 }), moneyCol('debit', 'Debit'), moneyCol('credit', 'Credit'), textCol('memo', 'Memo', { flex: 1, tooltipField: 'memo' }), { field: 'by', headerName: 'By', width: 92, cellRenderer: (p) => (p.node.rowPinned ? '' : p.value === 'Claude' ? badge('claude', 'Claude') : badge('rule', 'Rule')), filter: 'agTextColumnFilter' }, textCol('exception', 'Exception', { width: 210, cellClass: 'mono' })] };
 }
 
 function theme() {
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const base = agGrid.themeQuartz;
+  const base = agGrid.themeQuartz.withParams({ fontSize: 13, rowHeight: 34, headerHeight: 36, spacing: 6, headerFontWeight: 600, wrapperBorderRadius: 10, accentColor: dark ? '#3fb393' : '#146c5b' });
   return dark && agGrid.colorSchemeDark ? base.withPart(agGrid.colorSchemeDark) : base;
+}
+
+// A pinned bottom row with the totals of every money column over the rows that pass the filters,
+// so the tie-out can be checked in the grid itself (on the journal: debits equal credits).
+function pinTotals(api) {
+  const cols = api.getColumnDefs().filter((c) => c.filter === 'agNumberColumnFilter').map((c) => c.field);
+  if (!cols.length) return;
+  const sum = Object.fromEntries(cols.map((f) => [f, 0]));
+  let n = 0;
+  api.forEachNodeAfterFilter((node) => { if (!node.data) return; n++; for (const f of cols) sum[f] += node.data[f] ?? 0; });
+  const first = api.getColumnDefs().find((c) => !cols.includes(c.field) && c.field !== 'statusKey' && c.field !== 'status' && c.field !== 'by')?.field;
+  api.setGridOption('pinnedBottomRowData', [{ ...sum, ...(first ? { [first]: `Total (${n})` } : {}) }]);
 }
 
 function drawGrid() {
   const { rows, cols } = columnsAndRows();
   const key = `${tab}`;
   if (grid && grid.__key === key) {
+    const before = new Map(); grid.forEachNode((n) => n.data?.id && before.set(n.data.id, n.data.statusKey));
     grid.setGridOption('rowData', rows);
+    pinTotals(grid);
+    // Flash the rows whose status just changed (an approval, and the items it settled).
+    if (tab === 'exceptions') {
+      const changed = []; grid.forEachNode((n) => { if (n.data?.id && before.has(n.data.id) && before.get(n.data.id) !== n.data.statusKey) changed.push(n); });
+      if (changed.length && !reduced.matches) grid.flashCells({ rowNodes: changed, flashDuration: 900, fadeDuration: 600 });
+    }
     if (selected && tab === 'exceptions') grid.forEachNode((n) => { if (n.data.id === selected) n.setSelected(true); });
     return;
   }
@@ -141,13 +185,17 @@ function drawGrid() {
     theme: theme(),
     columnDefs: cols,
     rowData: rows,
-    defaultColDef: { sortable: true, filter: true, resizable: true },
-    getRowId: tab === 'exceptions' || tab === 'paypal' || tab === 'books' ? (p) => p.data.id : undefined,
+    defaultColDef: { sortable: true, filter: true, floatingFilter: true, resizable: true, suppressHeaderMenuButton: false },
+    animateRows: !reduced.matches,
+    onFilterChanged: (e) => pinTotals(e.api),
+    getRowClass: (p) => (p.node.rowPinned ? 'totals' : undefined),
+    getRowId: tab === 'exceptions' || tab === 'paypal' || tab === 'books' ? (p) => (p.rowPinned ? `pinned-${p.rowPinned}` : p.data.id) : undefined,
     rowSelection: tab === 'exceptions' ? { mode: 'singleRow', checkboxes: false, enableClickSelection: true } : undefined,
-    onRowClicked: (p) => { if (tab === 'exceptions') { selected = p.data.id; drawDetail(); } },
+    onRowClicked: (p) => { if (tab === 'exceptions' && !p.node.rowPinned) { selected = p.data.id; drawDetail(); } },
     tooltipShowDelay: 300,
   });
   grid.__key = key;
+  pinTotals(grid);
 }
 
 function drawDetail() {
@@ -162,6 +210,7 @@ function drawDetail() {
   };
   let html = `<h3>${esc(e.id)}</h3><div class="sub">${statusChip(e)} · gap <b class="money">${fmt(e.gap)}</b></div>`;
   html += `<div class="items">${e.paypal.map((id) => item('p', id)).join('')}${e.ledger.map((id) => item('l', id)).join('')}</div>`;
+  if (e.hints?.length) html += e.hints.map((h) => `<div class="hint">${badge('warn', 'Found by code')} ${h.kind === 'transposition' ? 'Possible transposition' : esc(h.kind)} with <code>${esc(h.with)}</code>: ${esc(h.detail)}</div>`).join('');
   if (e.fix) {
     const f = e.fix;
     html += `<h3 style="margin-top:14px">${esc(state.config.categories[f.category] ?? f.category)}</h3><div class="sub">proposed by ${f.by === 'claude' ? `Claude (${esc(f.model ?? '')})` : 'a rule'}${e.attempts > 1 ? ' · corrected after failing its first checks' : ''}</div>`;
@@ -171,7 +220,7 @@ function drawDetail() {
     const extra = [...f.cites.paypal.filter((id) => !e.paypal.includes(id)).map((id) => item('p', id)), ...f.cites.ledger.filter((id) => !e.ledger.includes(id)).map((id) => item('l', id))];
     if (extra.length) html += `<div class="muted" style="margin-top:8px">Also settles:</div><div class="items">${extra.join('')}</div>`;
     html += '<div class="muted" style="margin-top:10px">Checks</div><ul class="checks">';
-    if (e.check.ok) html += ['Every line uses an account in the chart', 'Debits equal credits', 'Cites its own items, and only open ones', 'Moves PayPal clearing by exactly the gap', 'Category fits the cited PayPal transactions'].map((t) => `<li><span class="chip good">pass</span> ${t}</li>`).join('');
+    if (e.check.ok) html += ['The exception is still open', 'The category is a known one', 'Cites its own items, and only open ones', 'Every line uses an account in the chart', 'Each line is one positive whole-cent debit or credit', 'Debits equal credits', 'Moves PayPal clearing by exactly the gap', 'Category fits the cited PayPal event codes', 'No foreign-currency item without a conversion'].map((t) => `<li><span class="chip good">pass</span> ${t}</li>`).join('');
     else html += e.check.failures.map((x) => `<li><span class="chip bad">${esc(x.rule)}</span> ${esc(x.detail)}</li>`).join('');
     html += '</ul>';
     if (e.firstFailures) html += `<div class="muted" style="font-size:12.5px">First attempt failed: ${e.firstFailures.map((x) => esc(x.detail)).join('; ')}</div>`;

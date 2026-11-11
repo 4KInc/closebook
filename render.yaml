@@ -6,8 +6,8 @@ services:
     runtime: node
     plan: free
     buildCommand: npm ci --omit=dev
-    startCommand: npm start
-    healthCheckPath: /
+    startCommand: node server.mjs
+    healthCheckPath: /health
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
@@ -18,5 +18,9 @@ services:
         sync: false
       - key: PAYPAL_CLIENT_SECRET
         sync: false
+      - key: PAYPAL_ENVIRONMENT
+        value: sandbox
       - key: CLAUDE_CALLS_PER_DAY
         value: "600"
+      - key: CLAUDE_CALLS_PER_SESSION
+        value: "80"

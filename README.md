@@ -20,16 +20,41 @@ before a person can approve it, so the books close to the cent.
 - **Nothing is approved automatically.** A person approves or rejects every entry, and a
   rejection's reason is shown to Claude for the rest of the close.
 
-**Try it, no keys needed for the rules:** run it locally (below) and open **the demo month**, a
-small ceramics shop's October with planted mistakes. Set `ANTHROPIC_API_KEY` to add Claude's
-proposals.
+**Try it:** [closebook-uju5.onrender.com](https://closebook-uju5.onrender.com) and open **the
+demo month**, a small ceramics shop's October with planted mistakes. No sign-in, no keys. (Free
+hosting: the first visit after a quiet spell can take a minute to wake the server.)
 
 > Built for the PayPal AI Hackathon. closebook only **reads** PayPal; it never moves money.
 
-**State:** 14 tests. The demo month opens with a difference of **−$897.44**; rule fixes bring it
-to −$825.15, and a correct entry for each remaining exception brings it to **$0.00** (tested).
-Reading a real sandbox month is written against the Transaction Search API and needs an app with
-the Transaction search permission; it has not yet been run end to end against one.
+**State:** 29 tests, including property tests over thousands of generated entries and months. The
+demo month opens with a difference of **−$897.44**; rule fixes bring it to −$825.15, and a correct
+entry for each remaining exception brings it to **$0.00** (tested). Reading a real sandbox month is
+written against the Transaction Search API, and its paging, retries and error messages are tested
+against a fake PayPal; it has not yet been run end to end against a sandbox app with the
+Transaction search permission.
+
+## Why Claude proposes and code decides
+
+A reconciliation is arithmetic with judgement on top. The judgement is the hard part for people:
+which PayPal event explains this gap, which account it belongs in, whether two lines are a
+duplicate or two sales. That is where Claude helps. The arithmetic is where a model must not be
+trusted: an entry that is off by one cent, or that balances but moves the wrong account, leaves the
+books wrong while looking finished.
+
+So the work is split by what can be proved:
+
+- **Code matches** what can be matched by rule, and never guesses between two candidates.
+- **Claude proposes** an entry for the rest, in a fixed schema, with the items it settles cited by
+  ID.
+- **Code decides** whether the entry is admissible: nine checks, all arithmetic or lookups, none of
+  them a model. An entry that fails cannot be approved.
+- **A person approves** every entry, including rule-made ones. Claude never approves, never posts,
+  and nothing in closebook can move money in PayPal: it only calls Transaction Search.
+
+Because every exception carries a gap, and the gaps add up to the tie-out difference, "every
+exception closed by an entry that passed the checks" means the difference is exactly $0.00. The
+checks do not prove an entry tells the right story (Claude can pass the checks with the wrong
+category), which is why the last step is a person.
 
 ## The problem
 
@@ -43,6 +68,27 @@ what PayPal did. PayPal's numbers rarely match the books on the first try:
 
 Each one is easy once found. Finding them among hundreds of lines, and writing an entry that is
 right to the cent, is what takes the hours.
+
+## Walk through the demo month
+
+1. Open the app and click **Open the demo month**. The tiles show PayPal's net activity, the
+   books' PayPal clearing balance, and the difference: **−$897.44**. 31 book lines are matched by
+   rule; 39 exceptions are open.
+2. Click **Propose fixes**. Rules write the 23 fee entries at once; Claude then proposes an entry
+   for each of the other 16, one at a time (a few seconds each). Each row's badge shows **Ready**
+   when its entry passed every check, or **Fails checks**.
+3. Click **Approve all rule fixes that pass**. The difference counts down to **−$825.15**.
+4. Click any Claude row. The panel shows the PayPal transactions and book lines it settles, the
+   debit and credit lines, Claude's explanation and all nine checks. The $1,980.00 transfer booked
+   as $1,890.00 carries a **Hint**: code found the two swapped digits, and the hint is part of
+   Claude's prompt.
+5. Approve the entries one by one. An entry that cites several items settles them all (a dispute
+   hold and its release, for example). Any other pending entry that cited the same items fails its
+   checks at once; **Reject** it with a reason and ask Claude again, and the reason is in Claude's
+   next prompt.
+6. When the last entry is approved the difference reads **$0.00**. The **Journal** tab's totals
+   row shows debits equal to credits. **Export journal (CSV)** and **Export audit trail (CSV)**
+   download the result.
 
 ## What the demo month contains
 
@@ -68,13 +114,15 @@ sales, so the date-and-amount rule refuses to pick and leaves them for review.
 1. **Read PayPal.** `GET /v1/reporting/transactions` through PayPal's Server SDK
    (`@paypal/paypal-server-sdk`, generated by APIMatic), with `fields=all`, balance-affecting
    records only, 500 a page, every page. Amounts become whole cents, and each event code becomes a
-   kind: payment, fee, refund, reversal, hold, transfer, payout, fx, correction.
+   kind (see [PayPal event codes](#paypal-event-codes)).
 2. **Read the books.** A CSV of the PayPal clearing account: `date, amount` and optionally
    `id, memo, ref`, where amount is the signed change to PayPal clearing.
 3. **Match by rule.** First by reference: the book line's `ref` equals the PayPal transaction ID,
    invoice ID or custom field, and the amount equals gross or net. Then by amount and date: the
    amount equals gross or net, the dates are at most 3 days apart, and the pairing is the only
-   candidate both ways. Ambiguous pairs are never guessed.
+   candidate both ways. Ambiguous pairs are never guessed. Code also flags an unmatched book line
+   whose amount is a PayPal amount with two adjacent digits swapped, within the same date window;
+   the flag is shown to Claude and to the reviewer as a hint, not a match.
 4. **Open the exceptions.** Every unmatched PayPal transaction, every unmatched book line, and
    every sale matched at gross whose fee is unbooked becomes an exception with a **gap**: the
    PayPal net of its transactions minus the book amount of its lines. The gaps of all exceptions
@@ -90,7 +138,8 @@ sales, so the date-and-amount rule refuses to pick and leaves them for review.
 7. **A person approves.** Approval runs the checks again, closes the exception and every other
    open exception the entry cites, then re-checks every other pending entry, so one that clashes
    with what was just approved shows as failing at once (both lines of the duplicate, for
-   example). Approved entries export as a journal CSV.
+   example). Approved entries export as a journal CSV, and every approval and rejection as an
+   audit trail.
 
 ### The checks
 
@@ -105,6 +154,40 @@ sales, so the date-and-amount rule refuses to pick and leaves them for review.
 | closes_gap | the entry moves 1010 PayPal clearing by exactly the gap of the items it cites |
 | category_fits | a cited PayPal transaction has a kind the category needs (a refund fix must cite a refund); a books-only category cites no PayPal transaction and must cite a book line; a fee fix's gap must equal the cited fees |
 | currency | a transaction in another currency can only be cited by a currency conversion entry |
+
+### PayPal event codes
+
+Transaction Search reports each balance movement with an event code. A payment wrapper that only
+sees "paid" and "refunded" cannot tell a chargeback from a refund, or a dispute hold from a
+withdrawal; the close needs those differences, because each one goes to a different account.
+
+| Code | What PayPal did | Kind | Usual entry |
+|---|---|---|---|
+| T0006 | checkout payment received, fee withheld | payment | Dr 1010 net, Dr 6100 fee, Cr 4000 gross |
+| T1107 | refund sent by the merchant, part of the fee returned | refund | Dr 4900, Cr 6100 returned fee, Cr 1010 |
+| T1110 | funds held for a dispute | hold | Dr 1210, Cr 1010 |
+| T1111 | dispute hold released | hold | Dr 1010, Cr 1210 |
+| T1201 | chargeback, with its fee | reversal | Dr 6150 (and 6100), Cr 1010 |
+| T0001 | payout sent from the PayPal balance | payout | Dr 5100, Dr 6100 fee, Cr 1010 |
+| T0400 | withdrawal to the bank | transfer | Dr 1000, Cr 1010 |
+| T02xx | currency conversion | fx | the spread to 7100 |
+
+Codes not listed exactly fall back to their group (T00 payments, T01 fees, T02 conversions, T03
+and T04 transfers, T15 and T21 holds, T19 corrections) and then to "other" (`src/codes.mjs`).
+
+### Reading PayPal safely
+
+- **Paging:** every page up to `total_pages`, 500 at a time, stopping with a clear error past
+  200 pages.
+- **Too many results:** if PayPal answers `RESULTSET_TOO_LARGE`, the date window is split in half
+  and each half read on its own.
+- **Rate limits and outages:** 429, 5xx and network errors are retried up to five times with
+  exponential backoff and jitter, honouring PayPal's `Retry-After`. The search is read-only, so a
+  retry cannot repeat anything.
+- **Clear errors:** a 401 names the credentials; a 403 says to enable **Transaction search** on
+  the REST app; an empty month says that new transactions can take up to three hours to appear.
+- **Startup check:** with PayPal credentials set, the server makes one small search at startup and
+  logs (and shows on the start screen) whether the permission is missing.
 
 ### The categories
 
@@ -130,6 +213,9 @@ with no PayPal activity · PayPal account correction not booked.
   needs a person.
 - **Transaction Search limits:** per PayPal's API reference, new transactions can take up to three
   hours to appear, and one search covers at most 31 days.
+- **No row grouping.** The grids use AG Grid Community, which has sorting, filters, pinned
+  columns, pinned totals rows and cell flashing; row grouping is an Enterprise feature and is not
+  used.
 - **State is in memory.** Each browser gets its own close; it is lost on restart, sessions idle
   for 6 hours are dropped, and at most 2,000 are kept.
 
@@ -139,10 +225,14 @@ Node 24.
 
 ```sh
 npm install
-npm test                               # 14 tests
+npm test                               # 29 tests
 npm start                              # http://localhost:8080, the demo month with rule fixes only
 ANTHROPIC_API_KEY=... npm start        # with Claude's proposals
 ```
+
+A `.env` file next to `server.mjs` is loaded at startup if present. `GET /health` answers
+`{"ok":true,...}` for the host's health check. On `SIGTERM` or `SIGINT` the server stops taking
+new connections, finishes the ones in flight, then exits.
 
 To close a real sandbox month, also set `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` for a sandbox
 REST app with **Transaction search** enabled in the PayPal developer dashboard (without it PayPal
@@ -163,26 +253,30 @@ example at `/api/demo-ledger.csv` is the demo month's books.
 
 | File | What |
 |---|---|
-| `src/paypal.mjs` | Transaction Search through PayPal's Server SDK, paged |
+| `src/paypal.mjs` | Transaction Search through PayPal's Server SDK: paging, retries with backoff, window splitting, the startup check |
 | `src/normalize.mjs` | PayPal rows and the books CSV into one shape, amounts in whole cents |
 | `src/codes.mjs` | PayPal event codes to kinds, and the 12 fix categories |
-| `src/match.mjs` | the matching rules, the exceptions and their gaps, the tie-out |
+| `src/match.mjs` | the matching rules, the exceptions and their gaps, the tie-out, the transposition hint |
 | `src/check.mjs` | the checks every fix must pass, and the chart of accounts |
 | `src/close.mjs` | one month's close: propose, approve, reject, journal, summary |
 | `src/claude.mjs` | Claude's proposal: one structured-output call per exception, one retry on failed checks |
 | `src/money.mjs` | parsing and formatting money without floating point |
 | `src/demo.mjs` | the demo month, with an answer key of what was planted |
-| `server.mjs` | the HTTP server: sessions, the API, the Claude call limits, static files |
+| `server.mjs` | the HTTP server: sessions, the API, the journal and audit exports, the Claude call limits, `/health`, graceful shutdown |
+| `render.yaml` | the Render Blueprint the live demo runs from |
 | `public/` | the review screen: tie-out, exceptions, matched lines, PayPal activity, books and journal, each an AG Grid |
-| `test/` | money, CSV, event codes, matching, every check, approval and rejection, a full close to $0.00 |
+| `test/close.test.mjs` | money, CSV, event codes, matching, every check, approval and rejection, a full close to $0.00 |
+| `test/invariants.test.mjs` | property tests: money round trips, balanced entries, gaps summing to the difference over 300 generated months |
+| `test/scenarios.test.mjs` | chargeback lifecycle, partial refund with part of the fee returned, currency conversion with a spread, the transposed transfer |
+| `test/paypal.test.mjs` | the Transaction Search client against a fake PayPal: paging, backoff, Retry-After, window splitting, error messages |
 
 ## Built with
 
 - PayPal Transaction Search API, through PayPal's Server SDK
 - Claude (`claude-opus-5-5`) through the Anthropic SDK, with structured outputs
-- AG Grid Community for the review grids
+- AG Grid Community for the review grids: filters on every column, pinned totals rows, status badges, cell flashing on approval
 - Node 24, no web framework; two dependencies
 
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE).

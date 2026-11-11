@@ -1,0 +1,74 @@
+// Transaction Search client against a fake SDK controller: paging, backoff, Retry-After, window
+// splitting and the error messages a person sees. No network.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { fetchMonth, probe, withRetry, PayPalError } from '../src/paypal.mjs';
+
+const ENV = { PAYPAL_CLIENT_ID: 'id', PAYPAL_CLIENT_SECRET: 'secret' };
+const apiError = (statusCode, body = '', headers = {}) => Object.assign(new Error(`HTTP ${statusCode}`), { statusCode, body, headers });
+const page = (rows, total) => ({ body: JSON.stringify({ transaction_details: rows, total_pages: total }) });
+const row = (id) => ({ transaction_info: { transaction_id: id } });
+const quiet = { wait: async () => {}, log: () => {} };
+
+test('reads every page until total_pages', async () => {
+  const seen = [];
+  const controller = { searchTransactions: async (q) => { seen.push(q.page); return page(Array.from({ length: q.page < 3 ? 500 : 7 }, (_, i) => row(`${q.page}-${i}`)), 3); } };
+  const rows = await fetchMonth('2026-10', ENV, { controller, ...quiet });
+  assert.deepEqual(seen, [1, 2, 3]);
+  assert.equal(rows.length, 1007);
+});
+
+test('an empty month is an empty list, and a page without transaction_details does not crash', async () => {
+  const controller = { searchTransactions: async () => ({ body: JSON.stringify({ total_pages: 0 }) }) };
+  assert.deepEqual(await fetchMonth('2026-10', ENV, { controller, ...quiet }), []);
+});
+
+test('429 and 5xx are retried with growing waits; Retry-After is honoured', async () => {
+  const waits = [];
+  let n = 0;
+  const controller = { searchTransactions: async () => { n++; if (n === 1) throw apiError(429, '', { 'retry-after': '2' }); if (n === 2) throw apiError(503); return page([row('A')], 1); } };
+  const rows = await fetchMonth('2026-10', ENV, { controller, baseMs: 100, wait: async (ms) => waits.push(ms), log: () => {} });
+  assert.equal(rows.length, 1);
+  assert.equal(waits[0], 2000);                     // Retry-After: 2 seconds
+  assert.ok(waits[1] >= 200 && waits[1] < 300);     // second retry: 100 * 2^1 plus jitter under 100
+});
+
+test('a retryable failure gives up after the set attempts with a clear message', async () => {
+  let n = 0;
+  await assert.rejects(withRetry(async () => { n++; throw apiError(500); }, { attempts: 3, ...quiet }), (e) => e instanceof PayPalError && /did not answer \(500\).*Gave up after 3 attempts/.test(e.message));
+  assert.equal(n, 3);
+});
+
+test('403 and 401 are not retried and say what to do', async () => {
+  for (const [status, text] of [[403, /enable "Transaction search"/], [401, /client ID or secret/]]) {
+    let n = 0;
+    const controller = { searchTransactions: async () => { n++; throw apiError(status, '{"name":"NOT_AUTHORIZED"}'); } };
+    await assert.rejects(fetchMonth('2026-10', ENV, { controller, ...quiet }), text);
+    assert.equal(n, 1);
+  }
+});
+
+test('RESULTSET_TOO_LARGE splits the month into smaller windows and reads both halves', async () => {
+  const windows = [];
+  const controller = { searchTransactions: async (q) => {
+    const span = Date.parse(q.endDate) - Date.parse(q.startDate);
+    if (span > 20 * 864e5) throw apiError(400, '{"name":"RESULTSET_TOO_LARGE"}');
+    windows.push([q.startDate, q.endDate]);
+    return page([row(q.startDate)], 1);
+  } };
+  const rows = await fetchMonth('2026-10', ENV, { controller, ...quiet });
+  assert.equal(windows.length, 2);
+  assert.equal(windows[0][0], '2026-10-01T00:00:00Z');
+  assert.equal(windows[1][1], '2026-10-31T23:59:59Z');
+  assert.ok(Date.parse(windows[1][0]) - Date.parse(windows[0][1]) === 1000); // no gap, no overlap
+  assert.equal(rows.length, 2);
+});
+
+test('the startup check reports a missing permission without throwing', async () => {
+  const controller = { searchTransactions: async () => { throw apiError(403, '{"name":"NOT_AUTHORIZED"}'); } };
+  const r = await probe(ENV, { controller, ...quiet });
+  assert.equal(r.ok, false);
+  assert.equal(r.status, 403);
+  assert.match(r.message, /Transaction search/);
+  assert.equal((await probe({}, quiet)).ok, false);
+});

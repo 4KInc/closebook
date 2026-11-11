@@ -26,24 +26,96 @@ export function monthRange(period) {
   return { startDate: iso(start), endDate: iso(end) };
 }
 
-// Returns the raw `transaction_details` array (snake_case, as the REST API sends it), so live data
-// and the demo month go through the same normalizer.
-export async function fetchMonth(period, env = process.env) {
-  const ctl = controller(env);
-  const { startDate, endDate } = monthRange(period);
+export class PayPalError extends Error {
+  constructor(message, { status = null, retryable = false } = {}) { super(message); this.name = 'PayPalError'; this.status = status; this.retryable = retryable; }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const header = (e, name) => { const h = e?.headers ?? {}; return h[name] ?? h[name.toLowerCase()] ?? (typeof h.get === 'function' ? h.get(name) : undefined); };
+
+// What a failed SDK call means for the person running the close.
+function explain(e) {
+  const status = e?.statusCode ?? null;
+  const body = typeof e?.body === 'string' ? e.body : '';
+  if (status === 401) return new PayPalError('PayPal rejected the client ID or secret (401). Check PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET and PAYPAL_ENVIRONMENT (sandbox credentials only work against the sandbox).', { status });
+  if (status === 403) return new PayPalError('PayPal refused Transaction Search (403 NOT_AUTHORIZED). In the PayPal developer dashboard, open this REST app, enable "Transaction search", and wait a few minutes for the permission to apply.', { status });
+  if (status === 429) return new PayPalError('PayPal is rate-limiting Transaction Search (429).', { status, retryable: true });
+  if (/RESULTSET_TOO_LARGE/.test(body)) return new PayPalError('too large', { status });
+  if (status === null || status >= 500) return new PayPalError(`PayPal Transaction Search did not answer (${status ?? e?.code ?? e?.message ?? 'network error'}).`, { status, retryable: true });
+  return new PayPalError(`PayPal Transaction Search failed (${status}): ${body.slice(0, 300) || e?.message}`, { status });
+}
+
+// One GET, retried with exponential backoff on 429, 5xx and network errors. Transaction Search is
+// read-only, so a retry cannot repeat anything. PayPal's Retry-After, when sent, wins.
+export async function withRetry(call, { attempts = 5, baseMs = 500, wait = sleep, log = console.warn } = {}) {
+  for (let i = 1; ; i++) {
+    try { return await call(); } catch (raw) {
+      const e = raw instanceof PayPalError ? raw : explain(raw);
+      if (!e.retryable || i >= attempts) {
+        if (e.retryable) e.message += ` Gave up after ${attempts} attempts; try again in a minute.`;
+        throw Object.assign(e, { cause: raw });
+      }
+      const after = Number(header(raw, 'Retry-After'));
+      const ms = Number.isFinite(after) && after > 0 ? after * 1000 : baseMs * 2 ** (i - 1) + Math.floor(Math.random() * baseMs);
+      log(`[paypal] ${e.message} Retrying in ${ms} ms (attempt ${i + 1} of ${attempts}).`);
+      await wait(ms);
+    }
+  }
+}
+
+const MAX_PAGES = 200; // 100,000 transactions at 500 a page
+
+// Every page of one date window. If PayPal says the window holds too many results
+// (RESULTSET_TOO_LARGE), the window is split in half and each half is read on its own.
+async function fetchWindow(search, startDate, endDate, opts, depth = 0) {
   const details = [];
   for (let page = 1; ; page++) {
     let res;
     try {
-      res = await ctl.searchTransactions({ startDate, endDate, fields: 'all', balanceAffectingRecordsOnly: 'Y', pageSize: 500, page });
+      res = await withRetry(() => search({ startDate, endDate, fields: 'all', balanceAffectingRecordsOnly: 'Y', pageSize: 500, page }), opts);
     } catch (e) {
-      const body = typeof e.body === 'string' ? e.body : '';
-      if (e.statusCode === 403) throw new Error('PayPal refused Transaction Search (403). In the PayPal developer dashboard, open this REST app and enable "Transaction search", then wait a few minutes for the permission to apply.');
-      throw new Error(`PayPal Transaction Search failed (${e.statusCode ?? 'no status'}): ${body.slice(0, 300) || e.message}`);
+      if (e.message === 'too large' && depth < 6) {
+        const mid = new Date((Date.parse(startDate) + Date.parse(endDate)) / 2);
+        const iso = (d) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+        const left = await fetchWindow(search, startDate, iso(mid), opts, depth + 1);
+        const right = await fetchWindow(search, iso(new Date(mid.getTime() + 1000)), endDate, opts, depth + 1);
+        return [...left, ...right];
+      }
+      if (e.message === 'too large') throw new PayPalError('PayPal says this period holds too many transactions to read, even split into small windows.');
+      throw e;
     }
-    const raw = JSON.parse(res.body);
-    details.push(...(raw.transaction_details ?? []));
-    if (page >= (raw.total_pages ?? 1)) break;
+    let raw;
+    try { raw = typeof res.body === 'string' ? JSON.parse(res.body) : res.result ?? res.body; }
+    catch { throw new PayPalError(`PayPal sent a page that is not JSON (page ${page}).`); }
+    const rows = Array.isArray(raw?.transaction_details) ? raw.transaction_details : [];
+    details.push(...rows);
+    const total = Number(raw?.total_pages ?? 1) || 1;
+    if (page >= total) break;
+    if (page >= MAX_PAGES) throw new PayPalError(`PayPal reports ${total} pages for this period; closebook stops at ${MAX_PAGES} (${MAX_PAGES * 500} transactions).`);
   }
   return details;
+}
+
+// Returns the raw `transaction_details` array (snake_case, as the REST API sends it), so live data
+// and the demo month go through the same normalizer. An empty month is an empty array, not an
+// error; PayPal notes that a new transaction can take up to three hours to appear.
+export async function fetchMonth(period, env = process.env, opts = {}) {
+  const ctl = opts.controller ?? controller(env);
+  const { startDate, endDate } = monthRange(period);
+  return fetchWindow((q) => ctl.searchTransactions(q), startDate, endDate, opts);
+}
+
+// A cheap check at startup: one transaction from the last day. Reports whether the credentials
+// work and whether the app has the Transaction search permission, without failing the server.
+export async function probe(env = process.env, opts = {}) {
+  if (!paypalConfigured(env)) return { ok: false, status: null, message: 'PayPal credentials are not set; only the demo month is available.' };
+  const ctl = opts.controller ?? controller(env);
+  const end = new Date(), start = new Date(end.getTime() - 864e5);
+  const iso = (d) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  try {
+    await withRetry(() => ctl.searchTransactions({ startDate: iso(start), endDate: iso(end), pageSize: 1, page: 1 }), { attempts: 2, ...opts });
+    return { ok: true, status: 200, message: 'PayPal Transaction Search is reachable.' };
+  } catch (e) {
+    return { ok: false, status: e.status ?? null, message: e.message };
+  }
 }

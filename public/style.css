@@ -85,6 +85,23 @@ main { padding: 16px 24px 24px; }
 .chip.info { background: var(--info-bg); color: var(--info); }
 .chip.warn { background: var(--warn-bg); color: var(--warn); }
 .muted { color: var(--muted); }
+.badge { display: inline-block; border-radius: 4px; padding: 0 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; line-height: 18px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+.badge.good { background: var(--good-bg); color: var(--good); }
+.badge.bad { background: var(--bad-bg); color: var(--bad); }
+.badge.info { background: var(--info-bg); color: var(--info); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.badge.rule { background: var(--chip); color: var(--ink); }
+.badge.claude { background: #f3e8dd; color: #8a4b1c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .badge.claude { background: #3a2a1d; color: #f0b98a; } }
+:root[data-theme="dark"] .badge.claude { background: #3a2a1d; color: #f0b98a; }
+.badge.pulse { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .badge.pulse { animation: none; } }
+.mono, .money { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.ag-row.totals { font-weight: 700; }
+.ag-row.totals .ag-cell { border-top: 2px solid var(--line); }
+.hint { font-size: 12.5px; background: var(--warn-bg); border-radius: 8px; padding: 6px 8px; margin: 8px 0; }
+.tile .v { font-family: var(--mono); }
 .money { font-variant-numeric: tabular-nums; }
 .neg { color: var(--bad); }
 .foot { color: var(--muted); font-size: 12px; text-align: center; padding: 12px 16px 20px; }
