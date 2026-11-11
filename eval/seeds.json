@@ -1,0 +1,4 @@
+{
+  "note": "Seeds for the generated months in src/generate.mjs. Same seed, same month: shop, size, mistakes and answer key.",
+  "seeds": [101, 102, 103, 104, 105, 106, 107, 108, 109, 110]
+}

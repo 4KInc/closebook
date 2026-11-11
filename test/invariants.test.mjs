@@ -95,3 +95,18 @@ test('transposition: adjacent digits swapped are found, and nothing else is', ()
   assert.equal(tieOut([], []).difference, 0);
   assert.deepEqual(match([], []).exceptions, []);
 });
+
+test('generated months: the same seed gives the same month, every planted mistake stays open, gaps add up', async () => {
+  const { generatedMonth } = await import('../src/generate.mjs');
+  const { paypalRows, ledgerRows } = await import('../src/normalize.mjs');
+  const { readFileSync } = await import('node:fs');
+  const { seeds } = JSON.parse(readFileSync(new URL('../eval/seeds.json', import.meta.url), 'utf8'));
+  for (const seed of [...seeds, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+    const g = generatedMonth(seed);
+    assert.deepEqual(generatedMonth(seed), g, `seed ${seed} is reproducible`);
+    const close = openClose({ paypal: paypalRows(g.transaction_details), ledger: ledgerRows(g.ledgerCsv), period: g.period });
+    const open = new Set(close.exceptions.flatMap((e) => [...e.paypal, ...e.ledger]));
+    for (const p of g.planted) assert.ok(open.has(p.paypal) || open.has(p.ledger), `seed ${seed}: ${p.kind} was silently matched`);
+    assert.equal(close.exceptions.reduce((a, e) => a + e.gap, 0), summary(close).difference, `seed ${seed}`);
+  }
+});
