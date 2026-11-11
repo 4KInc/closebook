@@ -76,9 +76,12 @@ export function parseCsv(text) {
   return rows;
 }
 
+export const MAX_BOOK_LINES = 20_000;
+
 export function ledgerRows(csvText) {
   const [header, ...body] = parseCsv(csvText);
   if (!header) throw new Error('the ledger CSV is empty');
+  if (body.length > MAX_BOOK_LINES) throw new Error(`the books CSV has ${body.length.toLocaleString('en-US')} rows; closebook reads at most ${MAX_BOOK_LINES.toLocaleString('en-US')} (one month of the PayPal clearing account)`);
   const col = Object.fromEntries(header.map((h, i) => [h.trim().toLowerCase(), i]));
   for (const need of ['date', 'amount']) if (!(need in col)) throw new Error(`the ledger CSV needs a "${need}" column (it has: ${header.map((h) => h.trim()).join(', ')})`);
   // Every problem is collected with its row number, so a person can fix the file in one pass.

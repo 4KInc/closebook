@@ -1,18 +1,12 @@
-/* closebook front end: one AG Grid per tab, a detail panel, and calls to the server's JSON API. */
+/* closebook front end: one AG Grid per tab, a detail panel, and calls to the server's JSON API.
+   The HTML itself is built in view.mjs, where every value from the books or PayPal is escaped. */
+import { fmt, words, esc, badge, statusChip, byBadge, itemsLabel, entryText, voucherHtml, itemsCellHtml } from './view.mjs';
 const $ = (id) => document.getElementById(id);
 let state = null;
 let tab = 'exceptions';
 let grid = null;
 let selected = null;
 let busy = false;
-
-const fmt = (c) => {
-  if (c == null) return '';
-  const a = Math.abs(c), s = `${Math.floor(a / 100).toLocaleString('en-US')}.${String(a % 100).padStart(2, '0')}`;
-  return c < 0 ? `-$${s}` : `$${s}`;
-};
-const words = (code) => String(code ?? '').toLowerCase().replace(/_/g, ' ');
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 async function api(path, opts = {}) {
   const init = { method: opts.body !== undefined || opts.post ? 'POST' : 'GET', headers: { 'content-type': 'application/json' }, body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined };
@@ -95,22 +89,6 @@ function render() {
   drawDetail();
 }
 
-const badge = (cls, text, title = '') => `<span class="badge ${cls}"${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</span>`;
-const statusChip = (e) => {
-  if (e.status === 'approved') return badge('good', 'Approved');
-  if (e.status === 'covered') return badge('good', 'Settled', `settled by ${e.coveredBy}`);
-  if (e.pending) return badge('info pulse', 'AI…');
-  if (!e.fix) return badge('plain', 'Exception');
-  return e.check.ok ? badge('ready', 'Ready') : badge('bad', 'Fails checks');
-};
-const byBadge = (e) => (!e.fix ? '' : (e.fix.by === 'claude' ? badge('claude', 'AI') : badge('rule', 'Rule')) + (e.fix.original ? ' ' + badge('warn', 'Edited') : ''));
-
-function itemsLabel(e) {
-  const byP = new Map(state.paypal.map((t) => [t.id, t]));
-  const byL = new Map(state.ledger.map((l) => [l.id, l]));
-  return [...e.paypal.map((id) => { const t = byP.get(id); return `PayPal ${t.code} ${t.subject ?? ''}`; }), ...e.ledger.map((id) => `Book ${id}: ${byL.get(id).memo}`)].join(' · ');
-}
-
 const moneyCol = (field, headerName, width = 124) => ({
   field, headerName, width, type: 'rightAligned', filter: 'agNumberColumnFilter',
   valueFormatter: (p) => fmt(p.value),
@@ -122,7 +100,7 @@ function columnsAndRows() {
   if (tab === 'exceptions') {
     const rows = state.exceptions.map((e) => ({
       ...e,
-      what: itemsLabel(e),
+      what: itemsLabel(state, e),
       kind: e.source === 'fee' ? 'fee gap' : e.source === 'paypal' ? 'only in PayPal' : 'only in books',
       category: e.fix ? state.config.categories[e.fix.category] ?? e.fix.category : '',
       by: e.fix ? (e.fix.by === 'claude' ? 'AI' : 'rule') + (e.fix.original ? ' edited' : '') : '',
@@ -139,7 +117,7 @@ function columnsAndRows() {
         { field: 'statusKey', headerName: 'Status', width: 130, pinned: 'left', cellRenderer: (p) => (p.node.rowPinned ? '' : statusChip(p.data)), sort: 'asc', comparator: (a, b, na, nb) => (na?.data?.order ?? 9) - (nb?.data?.order ?? 9), filter: 'agTextColumnFilter', filterValueGetter: (p) => p.data.statusText },
         textCol('kind', 'Found', { width: 120 }),
         moneyCol('gap', 'Gap'),
-        textCol('what', 'Items', { flex: 2, minWidth: 220, tooltipField: 'what', cellRenderer: (p) => (p.node.rowPinned ? esc(p.value) : `${p.data.hints?.length ? badge('warn', 'Hint', p.data.hints.map((h) => h.detail).join('; ')) + ' ' : ''}${esc(p.value)}`) }),
+        textCol('what', 'Items', { flex: 2, minWidth: 220, tooltipField: 'what', cellRenderer: (p) => (p.node.rowPinned ? esc(p.value) : itemsCellHtml(p.data, p.value)) }),
         textCol('category', 'Proposed fix', { flex: 1, minWidth: 170 }),
         { field: 'by', headerName: 'By', width: 140, cellRenderer: (p) => (p.node.rowPinned ? '' : byBadge(p.data)), filter: 'agTextColumnFilter' },
         textCol('entry', 'Entry', { flex: 1.4, minWidth: 220, tooltipField: 'entry', cellClass: 'mono' }),
@@ -228,60 +206,11 @@ function drawGrid() {
   pinTotals(grid);
 }
 
-const CHECKS = ['The exception is still open', 'The category is one of the twelve', 'Cites its own items, and only open ones', 'Every account is in the chart', 'Each line is one whole-cent debit or credit', 'Debits equal credits', 'Moves PayPal clearing by exactly the gap', 'Category fits the cited PayPal event codes', 'No foreign-currency item without a conversion'];
-
 function drawDetail() {
   const el = $('detail');
   const e = state.exceptions.find((x) => x.id === selected);
-  if (!e || tab !== 'exceptions') {
-    el.innerHTML = tab === 'exceptions'
-      ? `<div class="v-empty"><span class="v-label">Journal voucher</span><h3>Pick an exception</h3><p>Each row is a line where PayPal and the books disagree. Select one to see:</p><ul><li>the PayPal transactions and book lines behind it</li><li>the entry proposed to settle it, and why</li><li>the nine checks it has to pass</li></ul></div>`
-      : `<div class="v-empty"><span class="v-label">${esc({ matched: 'Matched lines', paypal: 'PayPal activity', books: 'Books', journal: 'Journal' }[tab])}</span><h3>${esc({ matched: 'Paired by rule', paypal: 'What PayPal did', books: 'What the books say', journal: 'Approved entries' }[tab])}</h3><p>${esc({ matched: 'Each book line here was paired with one PayPal transaction, by reference or by an amount and date only one candidate fits.', paypal: 'Every balance-affecting transaction from Transaction Search, with its event code, gross, fee and net.', books: 'The PayPal clearing account as uploaded: each line is the signed change to account 1010.', journal: 'Every approved entry, one row per debit or credit. The totals row shows debits equal credits.' }[tab])}</p><p>The totals row at the bottom follows your filters.</p></div>`;
-    return;
-  }
-  const byP = new Map(state.paypal.map((t) => [t.id, t]));
-  const byL = new Map(state.ledger.map((l) => [l.id, l]));
-  const doc = (kind, id) => {
-    if (kind === 'p') { const t = byP.get(id); return `<div class="doc"><span class="src">PayPal</span><span class="what">${esc(t.code)} · ${esc(t.subject ?? t.kind)}</span><span class="amt ${t.net < 0 ? 'neg' : ''}">${fmt(t.net)}</span><span class="sub">${esc(t.date)} · ${esc(id)} · gross ${fmt(t.gross)}, fee ${fmt(t.fee)}${t.ref ? ` · refers to ${esc(t.ref)}` : ''}</span>${(state.disputes?.[t.ref] ?? state.disputes?.[t.id] ?? []).map((d) => `<span class="dispute">PayPal dispute ${esc(d.id)} · ${esc(words(d.reason))} · ${esc(words(d.status))}${d.stage ? ` · ${esc(words(d.stage))}` : ''}${d.outcome ? ` · ${esc(words(d.outcome))}` : ''}</span>`).join('')}</div>`; }
-    const l = byL.get(id); return `<div class="doc"><span class="src">Books</span><span class="what">${esc(l.memo || '(no memo)')}</span><span class="amt ${l.amount < 0 ? 'neg' : ''}">${fmt(l.amount)}</span><span class="sub">${esc(l.date)} · line ${esc(id)}${l.ref ? ` · ref ${esc(l.ref)}` : ''}</span></div>`;
-  };
-  const found = e.source === 'fee' ? 'Fee not booked' : e.source === 'paypal' ? 'Only in PayPal' : 'Only in the books';
-  let html = `<div class="v-head"><span class="v-label">Journal voucher</span><span class="v-id">${esc(e.id)}</span></div>`;
-  html += `<h3 class="v-title">${esc(e.fix ? state.config.categories[e.fix.category] ?? e.fix.category : found)}</h3>`;
-  html += `<div class="v-meta">${statusChip(e)}${byBadge(e)}<span>gap <span class="v-gap ${e.gap < 0 ? 'neg' : ''}">${fmt(e.gap)}</span></span></div>`;
-  html += `<div class="v-sec"><span class="v-label">Supporting items</span>${e.paypal.map((id) => doc('p', id)).join('')}${e.ledger.map((id) => doc('l', id)).join('')}</div>`;
-  if (e.hints?.length) html += `<div class="v-sec">${e.hints.map((h) => `<div class="hint-box"><b>Found by code${h.kind === 'transposition' ? ' · possible transposition' : ''}</b><span>${esc(h.detail)} (see <code>${esc(h.with)}</code>)</span></div>`).join('')}</div>`;
-  if (e.fix) {
-    const f = e.fix;
-    if (e.status === 'open') {
-      // Open: the entry is an editable grid. The checks below re-run on every change.
-      const cats = Object.entries(state.config.categories).map(([k, v]) => `<option value="${esc(k)}"${k === f.category ? ' selected' : ''}>${esc(v)}</option>`).join('');
-      html += `<div class="v-sec"><span class="v-label">Entry · edit any cell, the checks re-run</span><label class="cat">Category<select id="cat">${cats}</select></label><div id="entryGrid" class="entry-grid"></div><div class="entry-tools"><button class="btn btn-quiet" id="addLine">+ Line</button><button class="btn btn-quiet" id="dropLine">Remove selected line</button>${f.original ? `<button class="btn btn-quiet" id="revert">Revert to the ${f.by === 'claude' ? 'AI' : 'rule'}'s entry</button>` : ''}</div><div class="memo">Memo: ${esc(f.memo)}</div>${f.original ? `<div class="edited-note">Edited by the reviewer. Was: ${esc(entryText(f.original.lines))}${f.original.category !== f.category ? ` (${esc(state.config.categories[f.original.category] ?? f.original.category)})` : ''}</div>` : ''}</div>`;
-    } else {
-      const lines = [...f.lines.filter((l) => l.debit), ...f.lines.filter((l) => !l.debit)];
-      const dr = f.lines.reduce((a, l) => a + (l.debit || 0), 0), cr = f.lines.reduce((a, l) => a + (l.credit || 0), 0);
-      html += `<div class="v-sec"><span class="v-label">Entry${f.original ? ' · edited by the reviewer' : ''}</span><table class="entry"><thead><tr><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr></thead><tbody>${lines.map((l) => `<tr class="${l.debit ? 'dr' : 'cr'}"><td><span class="acct">${esc(l.account)}</span>${esc(state.chart[l.account] ?? 'not in chart')}</td><td class="n">${l.debit ? fmt(l.debit) : ''}</td><td class="n">${l.credit ? fmt(l.credit) : ''}</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td class="n"><span>${fmt(dr)}</span></td><td class="n"><span>${fmt(cr)}</span></td></tr></tfoot></table><div class="memo">Memo: ${esc(f.memo)}</div></div>`;
-    }
-    if (f.explanation) html += `<div class="v-sec"><span class="v-label">${f.by === 'claude' ? `Why · AI (${esc(f.model ?? '')})` : 'Why · rule'}</span><div class="note ${f.by === 'claude' ? '' : 'rule'}">${esc(f.explanation)}</div></div>`;
-    const extra = [...f.cites.paypal.filter((id) => !e.paypal.includes(id)).map((id) => doc('p', id)), ...f.cites.ledger.filter((id) => !e.ledger.includes(id)).map((id) => doc('l', id))];
-    if (extra.length) html += `<div class="v-sec"><span class="v-label">Also settles</span>${extra.join('')}</div>`;
-    html += `<div class="v-sec"><span class="v-label">Checks · ${e.check.ok ? 'all nine pass' : `${e.check.failures.length} failing`}</span><ul class="checks">`;
-    html += e.check.ok ? CHECKS.map((t) => `<li><span class="tk">✓</span><span>${t}</span></li>`).join('')
-      : e.check.failures.map((x) => `<li class="fail"><span class="tk x">✗</span><span><span class="rule-name">${esc(x.rule)}</span>${esc(x.detail)}</span></li>`).join('');
-    html += '</ul>';
-    if (e.firstFailures) html += `<div class="first">The AI's first attempt failed (${e.firstFailures.map((x) => esc(x.rule)).join(', ')}) and was corrected.</div>`;
-    html += '</div>';
-    if (e.status === 'open') {
-      html += `<div class="decide"><div class="row"><button class="btn btn-ink" id="approve" ${e.check.ok ? '' : 'disabled'}>Approve entry</button><button class="btn btn-red" id="reject">Reject</button></div><textarea id="reason" rows="2" placeholder="Reason for rejecting. The AI reads it next time it proposes."></textarea></div>`;
-    } else if (e.status === 'approved') {
-      html += `<div class="approved-stamp"><span class="stamp">Approved</span><span class="when">${esc(e.approvedBy ?? 'reviewer')} · ${esc((e.approvedAt ?? '').replace('T', ' ').slice(0, 16))} UTC</span></div>`;
-    }
-  } else if (e.status === 'covered') {
-    html += `<div class="approved-stamp"><span class="stamp">Settled</span><span class="when">by the entry on ${esc(e.coveredBy)}</span></div>`;
-  } else if (e.status === 'open') {
-    html += `<div class="decide"><div class="row"><button class="btn btn-ink" id="proposeOne">${e.source === 'fee' ? 'Propose the fee entry' : 'Ask AI for an entry'}</button></div></div>`;
-  }
-  if (e.rejected?.length) html += `<div class="v-sec rejected"><span class="v-label">Rejected before</span>${e.rejected.map((r) => `<div>"${esc(r.fix.memo)}"${r.reason ? `: ${esc(r.reason)}` : ''}</div>`).join('')}</div>`;
+  if (!e || tab !== 'exceptions') { el.innerHTML = voucherHtml(state, null, tab); return; }
+  const html = voucherHtml(state, e, tab);
   entryGrid?.destroy(); entryGrid = null;
   el.innerHTML = html;
   if (e.fix && e.status === 'open') drawEntryGrid(e);
@@ -295,7 +224,6 @@ function drawDetail() {
 // The proposed entry as an AG Grid the reviewer can edit: account from the chart, debit or credit
 // in dollars and cents. Each change is sent to the server, which re-runs every check.
 let entryGrid = null;
-const entryText = (lines) => lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.account} ${fmt(l.debit || l.credit)}`).join(', ');
 // Dollars typed by a person into whole cents, without floating point; null if it is not an amount.
 const parseDollars = (text) => {
   const m = /^\$?\s*(\d{1,3}(?:,\d{3})*|\d+)?(?:\.(\d{1,2}))?$/.exec(String(text ?? '').trim());
@@ -406,6 +334,7 @@ $('openSandbox').addEventListener('click', async () => {
 $('openPaypal').addEventListener('click', async () => {
   const file = $('csv').files[0];
   if (!$('period').value || !file) { $('paypalHint').textContent = 'Pick a month and a CSV first.'; return; }
+  if (file.size > 2 * 1024 * 1024) { $('paypalHint').textContent = `That file is ${(file.size / 1048576).toFixed(1)} MB; the books CSV can be at most 2 MB.`; return; }
   $('paypalHint').textContent = 'Reading PayPal Transaction Search…';
   try { state = await api('/api/close/paypal', { body: { period: $('period').value, ledgerCsv: await file.text() } }); selected = null; grid?.destroy(); grid = null; $('paypalHint').textContent = ''; openView(); if (state.outside) setStatus(`${state.outside} book line${state.outside > 1 ? 's' : ''} dated outside ${state.period} ${state.outside > 1 ? 'were' : 'was'} left out of this close.`); }
   catch (err) { $('paypalHint').textContent = err.message; }

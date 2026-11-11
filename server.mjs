@@ -10,7 +10,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { extname, join, sep, normalize as normPath } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { demoMonth } from './src/demo.mjs';
 import { paypalRows, ledgerRows, balanceRow, disputeRows } from './src/normalize.mjs';
 import { openClose, disputedIds, ruleFix, propose, approve, reject, edit, summary, journal } from './src/close.mjs';
@@ -19,7 +19,10 @@ import { fetchMonth, fetchBalances, fetchDisputes, paypalConfigured, probe, PayP
 import { CATEGORIES } from './src/codes.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
-try { process.loadEnvFile(join(HERE, '.env')); } catch (e) { if (e.code !== 'ENOENT') console.warn(`[env] could not read .env: ${e.message}`); }
+// Run directly (`node server.mjs`), the server reads .env and listens. Imported (the tests), it
+// does neither: the tests set the environment themselves and start it on a free port.
+const MAIN = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (MAIN) { try { process.loadEnvFile(join(HERE, '.env')); } catch (e) { if (e.code !== 'ENOENT') console.warn(`[env] could not read .env: ${e.message}`); } }
 const PUBLIC = join(HERE, 'public');
 const PORT = Number(process.env.PORT ?? 8080);
 const CLAUDE_LIMIT = Number(process.env.CLAUDE_CALLS_PER_SESSION ?? 80);
@@ -58,9 +61,9 @@ setInterval(() => { const cut = Date.now() - 6 * 3600e3; for (const [k, s] of se
 
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
 
-async function body(req, limit = 2_000_000) {
+async function body(req, limit = 3_000_000) { // a 2 MB CSV, JSON-escaped, fits
   let size = 0; const chunks = [];
-  for await (const c of req) { size += c.length; if (size > limit) throw Object.assign(new Error('request too large'), { status: 413 }); chunks.push(c); }
+  for await (const c of req) { size += c.length; if (size > limit) throw Object.assign(new Error('The upload is too large: the books CSV can be at most 2 MB.'), { status: 413 }); chunks.push(c); }
   const text = Buffer.concat(chunks).toString('utf8');
   try { return text ? JSON.parse(text) : {}; } catch { throw Object.assign(new Error('the request body is not JSON'), { status: 400 }); }
 }
@@ -114,7 +117,7 @@ function lastDay(period) {
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
 }
 
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.csv': 'text/csv' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.csv': 'text/csv' };
 
 async function staticFile(req, res) {
   const path = new URL(req.url, 'http://x').pathname;
@@ -129,11 +132,15 @@ async function staticFile(req, res) {
 
 const SANDBOX = { period: '2026-11', file: join(HERE, 'samples', 'sandbox-2026-11-books.csv') };
 
+export const MAX_CSV_BYTES = 2 * 1024 * 1024;
+
 async function closeFromPayPal(s, res, period, ledgerCsv, label) {
-  if (!paypalConfigured()) return json(res, 400, { error: 'PayPal credentials are not configured on this server' });
-  if (!/^\d{4}-\d{2}$/.test(period ?? '')) return json(res, 400, { error: 'pick a month first' });
+  // The upload is checked before anything else, so a bad file gets a clear answer on any server.
+  if (Buffer.byteLength(ledgerCsv ?? '', 'utf8') > MAX_CSV_BYTES) return json(res, 413, { error: `The books CSV is larger than 2 MB. Split it by month, or keep only the PayPal clearing account.` });
   let ledger;
   try { ledger = ledgerRows(ledgerCsv ?? ''); } catch (e) { return json(res, 400, { error: `The books CSV could not be read: ${e.message}` }); }
+  if (!paypalConfigured()) return json(res, 400, { error: 'PayPal credentials are not configured on this server' });
+  if (!/^\d{4}-\d{2}$/.test(period ?? '')) return json(res, 400, { error: 'pick a month first' });
   if (ledger.length && !ledger.some((l) => l.date.startsWith(period))) return json(res, 400, { error: `None of the ${ledger.length} book lines is dated in ${period}. Check the month, or the dates in the CSV.` });
   let details, balances = null;
   try {
@@ -248,22 +255,29 @@ async function route(req, res) {
   json(res, 404, { error: 'not found' });
 }
 
-const server = createServer((req, res) => {
-  route(req, res).catch((e) => { console.error(e); if (!res.headersSent) json(res, e.status ?? 500, { error: e.message }); });
-}).listen(PORT, async () => {
-  console.log(`closebook on http://localhost:${PORT}  claude:${claudeReady() ? MODEL : 'off'}  paypal:${paypalConfigured() ? 'on' : 'off'}`);
-  if (paypalConfigured()) {
-    paypalStatus = await probe();
-    console[paypalStatus.ok ? 'log' : 'warn'](`[paypal] startup check: ${paypalStatus.message}`);
-  } else paypalStatus = { ok: false, status: null, message: 'PayPal credentials are not set; only the demo month is available.' };
-});
-
-// Render and most hosts send SIGTERM before stopping an instance: finish requests in flight, then exit.
-for (const sig of ['SIGTERM', 'SIGINT']) {
-  process.once(sig, () => {
-    console.log(`[server] ${sig}: closing`);
-    server.close(() => process.exit(0));
-    server.closeIdleConnections?.();
-    setTimeout(() => process.exit(0), 10_000).unref();
+export function start(port = PORT, { quiet = false } = {}) {
+  const server = createServer((req, res) => {
+    route(req, res).catch((e) => { if (!e.status || e.status >= 500) console.error(e); if (!res.headersSent) json(res, e.status ?? 500, { error: e.message }); });
   });
+  return new Promise((resolve) => server.listen(port, async () => {
+    if (!quiet) console.log(`closebook on http://localhost:${server.address().port}  claude:${claudeReady() ? MODEL : 'off'}  paypal:${paypalConfigured() ? 'on' : 'off'}`);
+    resolve(server);
+    if (paypalConfigured()) {
+      paypalStatus = await probe();
+      if (!quiet) console[paypalStatus.ok ? 'log' : 'warn'](`[paypal] startup check: ${paypalStatus.message}`);
+    } else paypalStatus = { ok: false, status: null, message: 'PayPal credentials are not set; only the demo month is available.' };
+  }));
+}
+
+if (MAIN) {
+  const server = await start();
+  // Render and most hosts send SIGTERM before stopping an instance: finish requests in flight, then exit.
+  for (const sig of ['SIGTERM', 'SIGINT']) {
+    process.once(sig, () => {
+      console.log(`[server] ${sig}: closing`);
+      server.close(() => process.exit(0));
+      server.closeIdleConnections?.();
+      setTimeout(() => process.exit(0), 10_000).unref();
+    });
+  }
 }
