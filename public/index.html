@@ -15,7 +15,10 @@
 <body>
 <header class="spine">
   <div class="spine-in">
-    <a class="wordmark" href="/" aria-label="closebook home"><span class="wm-mark" aria-hidden="true"></span>closebook</a>
+    <div class="spine-left">
+      <button class="back" id="back" hidden aria-label="Back to the home page">← Back</button>
+      <a class="wordmark" href="#" aria-label="closebook home"><span class="wm-mark" aria-hidden="true"></span>closebook</a>
+    </div>
     <div class="ledger-id" id="source"></div>
   </div>
 </header>
@@ -26,7 +29,8 @@
       <div class="hero-text">
         <p class="eyebrow">Month-end close · PayPal clearing, account 1010</p>
         <h1>Close the month in PayPal, line&nbsp;by&nbsp;line.</h1>
-        <p class="lede">closebook reads what PayPal actually did through Transaction Search and matches it against your books. Claude proposes an entry for every line that doesn't match. Code checks each one to the cent, and nothing is posted until you approve it.</p>
+        <p class="lede">Match your books to PayPal. Claude proposes the fixes, code checks them to the cent, you approve.</p>
+        <div class="resume" id="resume" hidden><button class="btn btn-ink" id="resumeBtn">Resume close</button><span id="resumeLabel"></span></div>
       </div>
       <figure class="slip" aria-label="The demo month's tie-out">
         <div class="slip-head"><span>Tie-out</span><span>Juniper Ceramics · Oct 2026</span></div>
@@ -40,21 +44,21 @@
     </div>
 
     <ol class="steps" aria-label="How a close runs">
-      <li><b>Rules match</b><span>By reference, or by amount and date when only one pairing fits. Fee entries are written by rule.</span></li>
-      <li><b>Claude proposes</b><span>One journal entry per leftover line, with the items it settles and a plain explanation.</span></li>
-      <li><b>Code checks</b><span>Nine checks: it balances, uses real accounts, fits the PayPal event codes, closes the gap to the cent.</span></li>
-      <li><b>You approve</b><span>Every entry, including the rule's. Reject with a reason and Claude reads it next time.</span></li>
+      <li><b>Rules match</b></li>
+      <li><b>Claude proposes</b></li>
+      <li><b>Code checks</b></li>
+      <li><b>You approve</b></li>
     </ol>
 
     <div class="doors">
       <div class="door door-demo">
         <h2>The demo month</h2>
-        <p>A small ceramics shop's October: 41 PayPal transactions, 37 book lines, and the usual mistakes. Unbooked fees, a refund, a chargeback and its hold, a payout, a transfer keyed as $1,890 instead of $1,980, a duplicate, and a cash sale posted to PayPal.</p>
+        <p>A ceramics shop's October, with planted mistakes. No setup.</p>
         <button class="btn btn-ink" id="openDemo">Open the demo month</button>
       </div>
       <div class="door">
         <h2>Your PayPal sandbox</h2>
-        <p>Pick a month, then upload the books for PayPal clearing as CSV with the columns <code>date, amount</code> and optionally <code>id, memo, ref</code>. <a href="/api/demo-ledger.csv">Example CSV</a></p>
+        <p>A month from PayPal, and your books as CSV. <a href="/api/demo-ledger.csv">Example CSV</a></p>
         <div class="fields">
           <label for="period">Month<input type="month" id="period"></label>
           <label for="csv">Books (CSV)<input type="file" id="csv" accept=".csv,text/csv"></label>

@@ -46,9 +46,18 @@ function countTo(el, to) {
   el._raf = requestAnimationFrame(step);
 }
 
+// Two views: the home page and the open close. The hash keeps them apart, so the browser's Back
+// button and the closebook wordmark both lead home without losing the close in progress.
+const onClose = () => location.hash === '#close' && Boolean(state?.summary);
+window.addEventListener('hashchange', () => render());
+
 function render() {
-  if (!state?.close && !state?.summary) {
+  $('back').hidden = !onClose();
+  if (!onClose()) {
     $('start').hidden = false; $('app').hidden = true; $('source').textContent = '';
+    const resume = $('resume');
+    resume.hidden = !state?.summary;
+    if (state?.summary) $('resumeLabel').textContent = `${state.source.label} · difference ${fmt(state.summary.difference)}`;
     const ps = state?.config?.paypalStatus;
     $('paypalHint').textContent = !state?.config?.paypal ? 'This server has no PayPal credentials configured, so only the demo month is available here.' : ps && !ps.ok && ps.status ? ps.message : '';
     $('openPaypal').disabled = !state?.config?.paypal;
@@ -310,15 +319,18 @@ $('tabs').addEventListener('click', (ev) => {
   render();
 });
 
-$('openDemo').addEventListener('click', async () => { state = await api('/api/close/demo', { post: true, body: {} }); selected = null; render(); });
+const openView = () => { if (location.hash === '#close') render(); else location.hash = 'close'; };
+$('openDemo').addEventListener('click', async () => { state = await api('/api/close/demo', { post: true, body: {} }); selected = null; grid?.destroy(); grid = null; openView(); });
+$('resumeBtn').addEventListener('click', openView);
 $('openPaypal').addEventListener('click', async () => {
   const file = $('csv').files[0];
   if (!$('period').value || !file) { $('paypalHint').textContent = 'Pick a month and a CSV first.'; return; }
   $('paypalHint').textContent = 'Reading PayPal Transaction Search…';
-  try { state = await api('/api/close/paypal', { body: { period: $('period').value, ledgerCsv: await file.text() } }); selected = null; render(); }
+  try { state = await api('/api/close/paypal', { body: { period: $('period').value, ledgerCsv: await file.text() } }); selected = null; grid?.destroy(); grid = null; $('paypalHint').textContent = ''; openView(); }
   catch (err) { $('paypalHint').textContent = err.message; }
 });
-$('restart').addEventListener('click', () => { state = { config: state.config }; grid?.destroy(); grid = null; render(); });
+$('restart').addEventListener('click', () => { state = { config: state.config }; grid?.destroy(); grid = null; selected = null; history.pushState(null, '', location.pathname); render(); });
+$('back').addEventListener('click', () => { history.pushState(null, '', location.pathname); render(); });
 
 (async () => {
   const now = new Date(); now.setMonth(now.getMonth() - 1);
