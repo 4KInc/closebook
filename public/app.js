@@ -136,7 +136,7 @@ function columnsAndRows() {
   if (tab === 'paypal') {
     return {
       rows: state.paypal.map((t) => ({ ...t, type: kindLabel(t) })),
-      cols: [textCol('date', 'Date', { width: 110 }), textCol('type', 'Type', { width: 150 }), textCol('subject', 'Item', { flex: 1 }), textCol('payer', 'Customer', { width: 140 }), moneyCol('gross', 'Amount'), moneyCol('fee', 'PayPal fee', 110), moneyCol('net', 'You received', 128), textCol('invoice', 'Invoice', { width: 110, cellClass: 'mono' }), textCol('id', 'PayPal ID', { width: 190, cellClass: 'mono' })],
+      cols: [textCol('date', 'Date', { width: 104 }), textCol('type', 'Type', { width: 120 }), textCol('subject', 'Item', { flex: 1, minWidth: 170, tooltipField: 'subject' }), textCol('payer', 'Customer', { width: 120 }), moneyCol('gross', 'Amount', 106), moneyCol('fee', 'PayPal fee', 100), moneyCol('net', 'You received', 116), textCol('invoice', 'Invoice', { width: 90, cellClass: 'mono' }), textCol('id', 'PayPal ID', { width: 170, cellClass: 'mono' })],
     };
   }
   if (tab === 'books') {

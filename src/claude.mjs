@@ -145,18 +145,18 @@ export async function proposeWithClaude(close, ex, { client = new Anthropic() } 
 // it only if every number and ID in it is one of the summary's (src/memo.mjs checkNarrative).
 export async function narrateClose(d, { client = new Anthropic() } = {}) {
   const lines = [
-    `Month: ${d.period}. Source: ${d.source}.`,
-    `Difference before the close: ${fmt(d.tieout.before)}. Net effect of approved entries on PayPal clearing: ${fmt(d.tieout.adjustments)}. Difference after: ${fmt(d.tieout.after)}.`,
-    d.balance ? `PayPal's own balance moved ${fmt(d.balance.moved)}, and the transactions read net to ${fmt(d.balance.activity)} (${d.balance.gap === 0 ? 'every transaction accounted for' : `${fmt(d.balance.gap)} not accounted for`}).` : 'No PayPal balance was read.',
-    `Approved entries by category: ${d.categories.map((c) => `${CATEGORIES[c.category]?.label ?? c.category}: ${c.entries} entries moving clearing ${fmt(c.moved)}`).join('; ') || 'none'}.`,
-    `Counts: ${d.counts.exceptions} exceptions, ${d.counts.byRule} approved from rules, ${d.counts.byClaude} approved from live AI proposals, ${d.counts.recorded} from recorded AI proposals, ${d.counts.corrected} corrected by the reviewer, ${d.counts.rejected} rejected, ${d.counts.open} still open.`,
-    d.flags.length ? `Untrusted text addressed to the AI was found on ${d.flags.map((f) => f.exception).join(', ')}.` : 'No untrusted text addressed to the AI was found.',
+    `Month: ${d.period}. Business: ${d.source}.`,
+    `Difference between PayPal and the books before any fixes: ${fmt(d.tieout.before)}. Total change from approved fixes: ${fmt(d.tieout.adjustments)}. Difference now: ${fmt(d.tieout.after)}.`,
+    d.balance ? `The PayPal balance changed by ${fmt(d.balance.moved)}, and the PayPal payments read add up to ${fmt(d.balance.activity)} (${d.balance.gap === 0 ? 'every PayPal payment is accounted for' : `${fmt(d.balance.gap)} is not accounted for`}).` : 'The PayPal balance was not read.',
+    `Approved fixes by type: ${d.categories.map((c) => `${CATEGORIES[c.category]?.label ?? c.category}: ${c.entries} fix${c.entries === 1 ? '' : 'es'}, ${fmt(c.moved)}`).join('; ') || 'none'}.`,
+    `Counts: ${d.counts.exceptions} items to review, ${d.counts.byRule} standard PayPal fee fixes approved, ${d.counts.byClaude} AI suggestions approved, ${d.counts.recorded} saved AI suggestions approved, ${d.counts.corrected} fixes changed by the owner before approving, ${d.counts.rejected} suggestions rejected, ${d.counts.open} items still to review.`,
+    d.flags.length ? `${d.flags.length} item${d.flags.length === 1 ? '' : 's'} had text (a buyer's note or a description) that tried to give the AI instructions; closebook flagged ${d.flags.length === 1 ? 'it' : 'them'} and the AI did not act on ${d.flags.length === 1 ? 'it' : 'them'}.` : 'No text tried to give the AI instructions.',
   ];
   const res = await client.beta.messages.create({
     model: MODEL, max_tokens: 4000,
     betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
     output_config: { effort: 'low' },
-    system: 'You write the opening paragraph of a month-end close memo for a controller. Three or four plain sentences: where the close ended, what moved it, and anything the controller should look at. Use only facts and numbers from the summary, written exactly as they appear there (for example -$897.44). Do not write any other number, date, account or ID. No headings, no lists.',
+    system: 'You write the opening paragraph of a month-end summary for the owner of a small business, who may share it with their accountant. Three or four short, plain sentences: whether the books now match PayPal, what the biggest fixes were, and anything worth a second look. Write like a helpful bookkeeper, not an accountant: say "PayPal fees", "refunds", "the books", never "clearing account", "exceptions" or "entries". Use only facts and numbers from the summary, written exactly as they appear there (for example -$897.44). Do not write any other number, date, account number or ID. No headings, no lists.',
     messages: [{ role: 'user', content: lines.join('\n') }],
   });
   if (res.stop_reason === 'refusal') throw new Error('Claude declined to write the narrative');

@@ -53,6 +53,7 @@ export function allowedTokens(d) {
   for (const a of d.approvals) { ids.add(a.exception); for (const l of a.lines) { addNum(l.account); addMoney(l.debit || l.credit); } }
   for (const r of d.rejected) ids.add(r.exception);
   for (const f of d.flags) ids.add(f.exception);
+  addNum(d.flags.length); // the narrative's input says how many items were flagged
   const [y, m] = d.period.split('-');
   addNum(y); addNum(Number(m)); addNum(m);
   for (const code of Object.keys(CHART)) if ([...d.approvals].some((a) => a.lines.some((l) => l.account === code))) addNum(code);
@@ -78,6 +79,7 @@ export function checkNarrative(text, d) {
 }
 
 const money = (c) => esc(fmt(c));
+const OUTCOME = { approved: 'Approved', covered: 'Fixed together with another item', open: 'Still to review' };
 const when = (t) => esc(day(t));
 
 export function memoHtml(d, { narrative = null, note = null } = {}) {
@@ -97,6 +99,8 @@ th { text-align: left; font: 600 10.5px ui-monospace, Menlo, monospace; text-tra
 td { padding: 4px 6px; border-bottom: 1px solid var(--rule); vertical-align: top; }
 tr:nth-child(even) td { background: var(--bar); }
 .n { text-align: right; font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
+.ref { font: 11.5px ui-monospace, Menlo, monospace; color: var(--ink-2); overflow-wrap: anywhere; }
+.when { white-space: nowrap; }
 .total td { font-weight: 700; border-top: 1px solid var(--ink); background: none; }
 .neg { color: var(--red); } .zero { color: var(--green); font-weight: 700; }
 .narrative { background: var(--bar); border-left: 3px solid var(--green); padding: 8px 12px; margin: 14px 0 0; }
@@ -145,16 +149,16 @@ ${rows(d.categories, (x) => `<tr><td>${esc(x.label)}</td><td class="n">${x.entri
 </tbody></table>
 
 ${d.flags.length ? `<h2>Text that tried to give the AI instructions</h2><table><thead><tr><th>Item</th><th>Where</th><th>Text</th><th>Outcome</th></tr></thead><tbody>
-${rows(d.flags, (f) => rows(f.flags, (x) => `<tr><td class="n">${esc(f.exception)}</td><td>${esc(x.field)}</td><td class="flag">“${esc(x.text)}”</td><td>${esc(f.status)}${f.category ? `, ${esc(CATEGORIES[f.category]?.label ?? f.category)}` : ''}</td></tr>`))}
+${rows(d.flags, (f) => rows(f.flags, (x) => `<tr><td class="ref">${esc(f.exception)}</td><td>${esc(x.field)}</td><td class="flag">“${esc(x.text)}”</td><td>${esc(OUTCOME[f.status] ?? f.status)}${f.category ? `: ${esc(CATEGORIES[f.category]?.label ?? f.category)}` : ''}</td></tr>`))}
 </tbody></table>` : ''}
 
 ${d.rejected.length ? `<h2>Suggestions you rejected</h2><table><thead><tr><th>When</th><th>Item</th><th>Suggested</th><th>Your reason</th></tr></thead><tbody>
-${rows(d.rejected, (r) => `<tr><td class="n">${when(r.at)}</td><td class="n">${esc(r.exception)}</td><td>${esc(CATEGORIES[r.category]?.label ?? r.category)} by ${esc(r.by === 'claude' ? 'the AI' : 'closebook')}: ${esc(r.memo)}</td><td>${esc(r.reason || '(none given)')}</td></tr>`)}
+${rows(d.rejected, (r) => `<tr><td class="when">${when(r.at)}</td><td class="ref">${esc(r.exception)}</td><td>${esc(CATEGORIES[r.category]?.label ?? r.category)} by ${esc(r.by === 'claude' ? 'the AI' : 'closebook')}: ${esc(r.memo)}</td><td>${esc(r.reason || '(none given)')}</td></tr>`)}
 </tbody></table>` : ''}
 
 <h2>Approved fixes</h2>
 <table><thead><tr><th>When</th><th>Item</th><th>Fix</th><th>Suggested by</th><th>Approved by</th></tr></thead><tbody>
-${rows(d.approvals, (a) => `<tr><td class="n">${when(a.at)}</td><td class="n">${esc(a.exception)}${a.covers.length ? `<br><span class="meta">also fixes ${esc(a.covers.join(', '))}</span>` : ''}</td><td>${esc(CATEGORIES[a.category]?.label ?? a.category)}<br><span class="meta">${esc(a.lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.account} ${fmt(l.debit || l.credit)}`).join(', '))}</span></td><td>${esc(a.by)}</td><td>${esc(a.reviewer)}</td></tr>`) || '<tr><td colspan="5">Nothing approved yet.</td></tr>'}
+${rows(d.approvals, (a) => `<tr><td class="when">${when(a.at)}</td><td class="ref">${esc(a.exception)}${a.covers.length ? `<br><span class="meta">also fixes ${esc(a.covers.join(', '))}</span>` : ''}</td><td>${esc(CATEGORIES[a.category]?.label ?? a.category)}<br><span class="meta">${esc(a.lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.account} ${fmt(l.debit || l.credit)}`).join(', '))}</span></td><td>${esc(a.by)}</td><td>${esc(a.reviewer)}</td></tr>`) || '<tr><td colspan="5">Nothing approved yet.</td></tr>'}
 </tbody></table>
 <div class="tools"><button onclick="window.print()">Print</button></div>
 </main></body></html>`;

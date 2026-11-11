@@ -51,6 +51,7 @@ test('a narrative is kept only if every number and ID in it is from the summary'
   const good = `October 2026 closed from -$897.44 to $0.00. ${d.counts.byRule} fee entries came from rules, ${d.counts.corrected} entries were corrected, and ${id} carried text addressed to the AI.`;
   assert.deepEqual(checkNarrative(good, d), { ok: true, problems: [] });
   assert.deepEqual(checkNarrative('The close moved $900.00 in fees.', d).problems, ['number 900.00']);
+  assert.equal(checkNarrative(`${d.flags.length} items had notes that tried to instruct the AI.`, d).ok, true, 'the flag count is in the summary the AI was given');
   assert.deepEqual(checkNarrative('See 3A1F99999DEMO9999 for details.', d).problems, ['id 3A1F99999DEMO9999']);
   assert.deepEqual(checkNarrative('Reviewed again in 2027.', d).problems, ['number 2027'], 'a date not in the summary is a number not in it');
   assert.equal(checkNarrative('', d).ok, false);

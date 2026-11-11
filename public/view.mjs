@@ -42,7 +42,7 @@ export const byBadge = (e) => (!e.fix ? '' : (e.fix.by === 'claude' ? badge('cla
 export function itemsLabel(state, e) {
   const byP = new Map(state.paypal.map((t) => [t.id, t]));
   const byL = new Map(state.ledger.map((l) => [l.id, l]));
-  return [...e.paypal.map((id) => { const t = byP.get(id); return `PayPal ${kindLabel(t).toLowerCase()}${t.subject ? `: ${t.subject}` : ''}`; }), ...e.ledger.map((id) => `Books: ${byL.get(id).memo || '(no memo)'}`)].join(' · ');
+  return [...e.paypal.map((id) => { const t = byP.get(id); return `PayPal ${kindLabel(t).replace(/^./, (c) => c.toLowerCase())}${t.subject ? `: ${t.subject}` : ''}`; }), ...e.ledger.map((id) => `Books: ${byL.get(id).memo || '(no memo)'}`)].join(' · ');
 }
 
 export const entryText = (lines) => lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.account} ${fmt(l.debit || l.credit)}`).join(', ');
