@@ -48,6 +48,8 @@ export function voucherHtml(state, e, tab = 'exceptions') {
   html += `<h3 class="v-title">${esc(e.fix ? state.config.categories[e.fix.category] ?? e.fix.category : found)}</h3>`;
   html += `<div class="v-meta">${statusChip(e)}${byBadge(e)}<span>gap <span class="v-gap ${e.gap < 0 ? 'neg' : ''}">${fmt(e.gap)}</span></span></div>`;
   html += `<div class="v-sec"><span class="v-label">Supporting items</span>${e.paypal.map((id) => doc('p', id)).join('')}${e.ledger.map((id) => doc('l', id)).join('')}</div>`;
+  // Text from PayPal or the books that addresses the AI: shown, quoted, never acted on.
+  if (e.flags?.length) html += `<div class="v-sec">${e.flags.map((f) => `<div class="flag-box"><b>Untrusted text addressed to the AI</b><span>${esc(f.field)}: <q>${esc(f.text)}</q></span><span class="flag-why">Treated as data. The checks still hold; judge the category and accounts yourself.</span></div>`).join('')}</div>`;
   if (e.hints?.length) html += `<div class="v-sec">${e.hints.map((h) => `<div class="hint-box"><b>Found by code${h.kind === 'transposition' ? ' · possible transposition' : ''}</b><span>${esc(h.detail)} (see <code>${esc(h.with)}</code>)</span></div>`).join('')}</div>`;
   if (e.fix) {
     const f = e.fix;
@@ -85,5 +87,5 @@ export function voucherHtml(state, e, tab = 'exceptions') {
 
 // The Items cell of the exceptions grid: a hint badge, then the items as text.
 export function itemsCellHtml(e, label) {
-  return `${e.hints?.length ? badge('warn', 'Hint', e.hints.map((h) => h.detail).join('; ')) + ' ' : ''}${esc(label)}`;
+  return `${e.flags?.length ? badge('bad', 'Flag', `Untrusted text addressed to the AI: ${e.flags.map((f) => f.text).join(' / ')}`) + ' ' : ''}${e.hints?.length ? badge('warn', 'Hint', e.hints.map((h) => h.detail).join('; ')) + ' ' : ''}${esc(label)}`;
 }

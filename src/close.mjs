@@ -2,6 +2,7 @@
 // out, so the server can persist it as JSON and the tests can drive it directly.
 import { match, tieOut, hints } from './match.mjs';
 import { check, CLEARING, CHART } from './check.mjs';
+import { untrustedFlags } from './untrusted.mjs';
 
 export function openClose({ paypal, ledger, period, currency = 'USD', chart = CHART, balances = null, disputes = {} }) {
   const inPeriod = (d) => !period || d.startsWith(period);
@@ -9,14 +10,16 @@ export function openClose({ paypal, ledger, period, currency = 'USD', chart = CH
   const foreign = paypal.filter((t) => t.currency !== currency && inPeriod(t.date));
   const books = ledger.filter((l) => inPeriod(l.date));
   const { matches, exceptions } = match(base, books);
-  const found = hints(exceptions, new Map(base.map((t) => [t.id, t])), new Map(books.map((l) => [l.id, l])));
+  const byP = new Map(base.map((t) => [t.id, t])), byL = new Map(books.map((l) => [l.id, l]));
+  const found = hints(exceptions, byP, byL);
+  const flagged = untrustedFlags(exceptions, byP, byL);
   return {
     period, currency, chart,
     disputes, // { originalTransactionId: [dispute rows] } from the Disputes API, for holds and chargebacks
     balances, // PayPal's own opening and closing balance, when read: { opening, closing } from balanceRow
     paypal: base, foreign, ledger: books, matches,
     outside: ledger.length - books.length, // book lines dated outside the period, left out of the close
-    exceptions: exceptions.map((e) => ({ ...e, hints: found.get(e.id) ?? [], status: 'open', fix: null, check: null })),
+    exceptions: exceptions.map((e) => ({ ...e, hints: found.get(e.id) ?? [], flags: flagged.get(e.id) ?? [], status: 'open', fix: null, check: null })),
     decisions: [],
   };
 }

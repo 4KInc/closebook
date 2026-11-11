@@ -23,6 +23,7 @@ export function paypalRows(details) {
       invoice: t.invoice_id ?? null,
       custom: t.custom_field ?? null,
       subject: t.transaction_subject ?? t.transaction_note ?? null,
+      note: t.transaction_note ?? null, // the buyer's note to the seller: typed by the buyer, so untrusted
       payer: payer ? (payer.alternate_full_name ?? [payer.given_name, payer.surname].filter(Boolean).join(' ')) : (d.payer_info?.email_address ?? null),
     };
   }).filter((r) => r.id);
