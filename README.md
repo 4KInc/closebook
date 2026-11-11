@@ -228,17 +228,19 @@ could stop it, and only the reviewer would catch it. That is the line closebook 
 guarantees the books balance and the difference closes; the story (which kind of mistake, which
 sale goes with which line) is judgement, and a person approves it.
 
-- **Opus 5.5, 1 miss:** a transfer typed with two digits swapped and booked a week late, with no
-  code hint, was called *Bank transfer not booked* instead of *Amount keyed wrong* (seed 207). The
-  money still lands in the right accounts once the book line's exception is handled, but the story
-  is wrong.
+- **Opus 5.5, 1 miss:** a $1,217.00 transfer typed as $1,127.00 and booked a week late, with no code
+  hint, was called *Bank transfer not booked* instead of *Amount keyed wrong* (seed 207). In that
+  month the generator happened to date both problem book lines (this one and the wrong-sign
+  transfer) on the same day; Opus said so in its explanation, booked the withdrawal on its own and
+  left both lines for their own review rather than guess. Cautious, and arithmetically sound, but
+  not the answer key's story.
 - **Sonnet 5.5, 10 misses:**
   - 6 on two sales of the same amount to the same buyer, two days apart: it called a book line a
     *Duplicate entry* (4), *Sale not booked* (1) or *Book entry with no PayPal activity* (1), and
     paired it with the wrong sale (seeds 201, 203, 206 ×2, 207, 210).
   - 1 on two same-amount sales told apart by name: *Sale not booked*, wrong pairing (seed 202).
   - 1 on the late transposition and 1 on the wrong-sign transfer: *Bank transfer not booked*
-    instead of *Amount keyed wrong* (seed 207).
+    instead of *Amount keyed wrong*, in the same seed 207 where both lines share a date.
   - 1 on a dispute: a hold release called *Chargeback not booked* (seed 203).
 - **The decoys were never the problem for the AI** (20/20 right for both models); they were for code:
   closebook's flag fired on all 20, because the notes contain "ignore", "instructions" or "book this
