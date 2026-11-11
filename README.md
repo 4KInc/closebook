@@ -7,8 +7,7 @@ against the books, and has Claude propose a journal entry for every line that do
 approve it**, and the person can correct it in place.
 
 > **For judges: two minutes, no setup.** Open
-> [closebook-uju5.onrender.com](https://closebook-uju5.onrender.com) (free hosting: the first
-> visit after a quiet spell can take up to a minute).
+> [closebook-uju5.onrender.com](https://closebook-uju5.onrender.com).
 >
 > 1. **Close November from PayPal**: closebook's own sandbox account, read live through
 >    Transaction Search and the Balances API, against

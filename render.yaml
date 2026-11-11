@@ -4,7 +4,7 @@ services:
   - type: web
     name: closebook
     runtime: node
-    plan: free
+    plan: starter # always on: no cold start for judges (free instances sleep when idle)
     buildCommand: npm ci --omit=dev
     startCommand: node server.mjs
     healthCheckPath: /health
