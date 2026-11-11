@@ -4,7 +4,7 @@ import { cents, fmt } from '../src/money.mjs';
 import { paypalRows, ledgerRows, parseCsv, balanceRow } from '../src/normalize.mjs';
 import { match } from '../src/match.mjs';
 import { check, CLEARING } from '../src/check.mjs';
-import { openClose, stateOf, ruleFix, propose, approve, reject, summary, journal } from '../src/close.mjs';
+import { openClose, stateOf, ruleFix, propose, approve, reject, edit, summary, journal } from '../src/close.mjs';
 import { demoMonth } from '../src/demo.mjs';
 import { kindOf } from '../src/codes.mjs';
 
@@ -217,4 +217,30 @@ test("PayPal's balance must move by exactly the net of the transactions read", (
   const part = openClose({ paypal: missing, ledger: [], period: d.period, balances });
   assert.equal(summary(part).balance.gap, lost.net);
   assert.equal(summary(openClose({ paypal: missing, ledger: [], period: d.period })).balance, null);
+});
+
+test('the reviewer can correct an entry: the checks re-run, the change is audited, and it can be reverted', () => {
+  const { close, ex } = setup();
+  const e = ex((x) => x.source === 'paypal' && stateOf(close).byP.get(x.paypal[0]).kind === 'payout');
+  const fee = -stateOf(close).byP.get(e.paypal[0]).fee, gross = -stateOf(close).byP.get(e.paypal[0]).gross;
+  propose(close, e.id, { by: 'claude', category: 'payout_not_booked', cites: { paypal: e.paypal, ledger: [] }, memo: 'payout', lines: [{ account: '3999', debit: -e.gap, credit: 0 }, { account: CLEARING, debit: 0, credit: -e.gap }] });
+  assert.equal(e.check.ok, true);
+  // A wrong amount fails at once ...
+  edit(close, e.id, { lines: [{ account: '5100', debit: gross, credit: 0 }, { account: CLEARING, debit: 0, credit: -e.gap }] });
+  assert.deepEqual(e.check.failures.map((f) => f.rule), ['balanced']);
+  // ... the right split passes, and the AI's original entry is kept.
+  edit(close, e.id, { lines: [{ account: '5100', debit: gross, credit: 0 }, { account: '6100', debit: fee, credit: 0 }, { account: CLEARING, debit: 0, credit: -e.gap }] });
+  assert.equal(e.check.ok, true);
+  assert.equal(e.fix.original.lines[0].account, '3999');
+  assert.equal(e.fix.by, 'claude');
+  const edits = close.decisions.filter((d) => d.verdict === 'edited');
+  assert.equal(edits.length, 1, 'a run of edits is one audit row');
+  assert.match(edits[0].reason, /from Dr 3999 .* to Dr 5100/);
+  // Reverting drops the mark; editing again and approving puts the edit in the journal.
+  edit(close, e.id, { lines: e.fix.original.lines });
+  assert.equal(e.fix.original, undefined);
+  edit(close, e.id, { lines: [{ account: '5100', debit: gross, credit: 0 }, { account: '6100', debit: fee, credit: 0 }, { account: CLEARING, debit: 0, credit: -e.gap }] });
+  approve(close, e.id);
+  assert.equal(journal(close).find((j) => j.exception === e.id).editedBy, 'reviewer');
+  assert.throws(() => edit(close, e.id, { lines: [] }), /already approved/);
 });

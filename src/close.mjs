@@ -78,6 +78,37 @@ export function approve(close, exceptionId, by = 'reviewer') {
   return ex;
 }
 
+const entryText = (lines) => lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.account} ${l.debit || l.credit}`).join(', ');
+
+// The reviewer corrects a proposed entry instead of rejecting it: a different account, an amount,
+// a line more or less, another category. The checks run again at once, and the change is kept on
+// the entry (what it was before), in the audit trail, and in the AI's next prompt.
+export function edit(close, exceptionId, changes, by = 'reviewer') {
+  const ex = close.exceptions.find((e) => e.id === exceptionId);
+  if (!ex?.fix) throw new Error(`${exceptionId} has no proposed fix to edit`);
+  if (ex.status !== 'open') throw new Error(`${exceptionId} is already ${ex.status}`);
+  const before = ex.fix;
+  const original = before.original ?? { category: before.category, lines: before.lines, memo: before.memo };
+  const next = {
+    ...before,
+    category: changes.category ?? before.category,
+    lines: changes.lines ?? before.lines,
+    memo: changes.memo ?? before.memo,
+  };
+  const same = next.category === original.category && next.memo === original.memo && entryText(next.lines) === entryText(original.lines);
+  const fix = same ? { ...next, original: undefined, editedBy: undefined, editedAt: undefined } : { ...next, original, editedBy: by, editedAt: new Date().toISOString() };
+  propose(close, exceptionId, fix);
+  const what = same ? `reverted to the ${before.by === 'claude' ? 'AI' : 'rule'}'s entry` : [
+    original.category !== fix.category ? `category ${original.category} to ${fix.category}` : '',
+    entryText(original.lines) !== entryText(fix.lines) ? `entry from ${entryText(original.lines)} to ${entryText(fix.lines)}` : '',
+  ].filter(Boolean).join('; ');
+  // One audit row per exception for a run of edits: the latest replaces the one before it.
+  const last = close.decisions.at(-1);
+  const row = { exception: ex.id, verdict: 'edited', category: fix.category, by: before.by, memo: fix.memo, reason: `changed ${what}`.replace('changed reverted', 'reverted'), at: new Date().toISOString(), reviewer: by };
+  if (last?.verdict === 'edited' && last.exception === ex.id) close.decisions[close.decisions.length - 1] = row; else close.decisions.push(row);
+  return ex;
+}
+
 export function reject(close, exceptionId, reason = '') {
   const ex = close.exceptions.find((e) => e.id === exceptionId);
   if (!ex?.fix) throw new Error(`${exceptionId} has no proposed fix`);

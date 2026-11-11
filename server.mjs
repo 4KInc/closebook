@@ -13,7 +13,7 @@ import { extname, join, sep, normalize as normPath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { demoMonth } from './src/demo.mjs';
 import { paypalRows, ledgerRows, balanceRow } from './src/normalize.mjs';
-import { openClose, ruleFix, propose, approve, reject, summary, journal } from './src/close.mjs';
+import { openClose, ruleFix, propose, approve, reject, edit, summary, journal } from './src/close.mjs';
 import { proposeWithClaude, MODEL } from './src/claude.mjs';
 import { fetchMonth, fetchBalances, paypalConfigured, probe, PayPalError } from './src/paypal.mjs';
 import { CATEGORIES } from './src/codes.mjs';
@@ -96,7 +96,7 @@ const dollars = (c) => (c ? (c / 100).toFixed(2) : '');
 function journalCsv(close) {
   const rows = [['entry_id', 'entry_date', 'account', 'account_name', 'debit', 'credit', 'currency', 'memo', 'category', 'proposed_by', 'approved_by', 'approved_at', 'exception', 'also_settles', 'paypal_transaction_ids', 'book_line_ids']];
   journal(close).forEach((f, i) => {
-    for (const l of f.lines) rows.push([`JE-${close.period}-${String(i + 1).padStart(3, '0')}`, lastDay(close.period), l.account, close.chart[l.account], dollars(l.debit), dollars(l.credit), close.currency, f.memo, f.category, f.by === 'claude' ? `claude (${f.model ?? ''})` : f.by, f.approvedBy, f.approvedAt, f.exception, f.covers.join(' '), f.cites.paypal.join(' '), f.cites.ledger.join(' ')]);
+    for (const l of f.lines) rows.push([`JE-${close.period}-${String(i + 1).padStart(3, '0')}`, lastDay(close.period), l.account, close.chart[l.account], dollars(l.debit), dollars(l.credit), close.currency, f.memo, f.category, (f.by === 'claude' ? `claude (${f.model ?? ''})` : f.by) + (f.editedBy ? `, edited by ${f.editedBy}` : ''), f.approvedBy, f.approvedAt, f.exception, f.covers.join(' '), f.cites.paypal.join(' '), f.cites.ledger.join(' ')]);
   });
   return csv(rows);
 }
@@ -206,7 +206,7 @@ async function route(req, res) {
     return json(res, 200, view(s));
   }
 
-  const m = /^\/api\/exceptions\/([^/]+)\/(propose|approve|reject)$/.exec(p);
+  const m = /^\/api\/exceptions\/([^/]+)\/(propose|approve|reject|edit)$/.exec(p);
   if (req.method === 'POST' && m) {
     const [, id, action] = m;
     const ex = c.exceptions.find((e) => e.id === decodeURIComponent(id));
@@ -228,6 +228,16 @@ async function route(req, res) {
     }
     // A refused approval (checks fail, nothing proposed, already settled) is the reviewer's to fix: 409.
     if (action === 'approve') { try { approve(c, ex.id); } catch (e) { return json(res, 409, { error: e.message }); } return json(res, 200, view(s)); }
+    if (action === 'edit') {
+      const { category, lines, memo } = await body(req);
+      // Shape only; whether the entry is right is for the checks, which run inside edit().
+      const okLine = (l) => l && typeof l.account === 'string' && l.account.length <= 10 && [l.debit ?? 0, l.credit ?? 0].every((v) => Number.isInteger(v) && v >= 0 && v < 1e13);
+      if (lines !== undefined && (!Array.isArray(lines) || lines.length > 20 || !lines.every(okLine))) return json(res, 400, { error: 'lines must be up to 20 of { account, debit, credit } in whole cents' });
+      if (category !== undefined && !(category in CATEGORIES)) return json(res, 400, { error: `unknown category ${category}` });
+      try { edit(c, ex.id, { category, lines: lines?.map((l) => ({ account: l.account, debit: l.debit ?? 0, credit: l.credit ?? 0 })), memo: memo === undefined ? undefined : String(memo).slice(0, 200) }); }
+      catch (e) { return json(res, 409, { error: e.message }); }
+      return json(res, 200, view(s));
+    }
     if (action === 'reject') { const { reason } = await body(req); try { reject(c, ex.id, String(reason ?? '').slice(0, 500)); } catch (e) { return json(res, 409, { error: e.message }); } return json(res, 200, view(s)); }
   }
   json(res, 404, { error: 'not found' });
