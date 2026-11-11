@@ -115,6 +115,9 @@ export function itemsCellHtml(e, label) {
 // How the difference goes to zero: the starting difference, one step per category of approved
 // entries (how much they moved the difference), and where it stands now. Built from the close the
 // server sent; every number is the server's.
+// Short names for the waterfall's bars; the full name is in each bar's title and the table.
+const SHORT = { fee_not_booked: 'PayPal fees', refund_not_booked: 'Refunds', reversal_not_booked: 'Chargebacks', hold_not_booked: 'Holds', fx_not_booked: 'Currency', transfer_not_booked: 'Bank transfers', payout_not_booked: 'Payouts', sale_not_booked: 'Sales', amount_keyed_wrong: 'Typos', duplicate_in_books: 'Duplicates', not_in_paypal: 'Not in PayPal', correction_not_booked: 'Corrections' };
+
 export function waterfallSteps(state) {
   const s = state.summary;
   const start = s.difference + s.adjustments; // before any approved entry
@@ -122,7 +125,7 @@ export function waterfallSteps(state) {
   for (const e of state.exceptions) {
     if (e.status !== 'approved') continue;
     const moved = e.fix.lines.reduce((a, l) => a + (l.account === '1010' ? (l.debit || 0) - (l.credit || 0) : 0), 0);
-    const c = byCat.get(e.fix.category) ?? { category: e.fix.category, label: state.config?.categories?.[e.fix.category] ?? e.fix.category, entries: 0, moved: 0 };
+    const c = byCat.get(e.fix.category) ?? { category: e.fix.category, label: state.config?.categories?.[e.fix.category] ?? e.fix.category, short: SHORT[e.fix.category] ?? e.fix.category, entries: 0, moved: 0 };
     c.entries++; c.moved += moved; byCat.set(e.fix.category, c);
   }
   let at = start;
@@ -134,12 +137,17 @@ export function waterfallSteps(state) {
 // A table with the same numbers is there for screen readers.
 export function waterfallHtml(state) {
   const { start, steps, end } = waterfallSteps(state);
-  const bars = [{ kind: 'total', label: 'At the start', from: 0, to: start }, ...steps.map((s) => ({ kind: 'step', label: s.label, from: s.from, to: s.to, entries: s.entries })), { kind: end === 0 ? 'zero' : 'total', label: end === 0 ? 'Difference now' : 'Left to fix', from: 0, to: end }];
+  const bars = [{ kind: 'total', label: 'At the start', from: 0, to: start }, ...steps.map((s) => ({ kind: 'step', label: s.label, short: s.short, from: s.from, to: s.to, entries: s.entries })), { kind: end === 0 ? 'zero' : 'total', label: end === 0 ? 'Difference now' : 'Left to fix', from: 0, to: end }];
   const vals = bars.flatMap((b) => [b.from, b.to]);
   const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals), span = hi - lo || 1;
-  const W = 760, H = 150, top = 18, bottom = 40, bw = Math.min(W / bars.length, 120);
+  const W = 960, H = 160, top = 18, bottom = 46, bw = Math.min(W / bars.length, 120);
   const y = (v) => top + ((hi - v) / span) * (H - top - bottom);
-  const short = (t) => (t.length > 15 ? `${t.slice(0, 14)}…` : t);
+  // Up to two lines of about the bar's width; anything longer ends in an ellipsis.
+  const perLine = Math.max(6, Math.floor((bw * 0.95) / 5.8));
+  const wrap = (t) => {
+    const lines = ['']; for (const w of t.split(' ')) { const l = lines.at(-1); if (!l || (l + ' ' + w).length <= perLine) lines[lines.length - 1] = l ? `${l} ${w}` : w; else lines.push(w); }
+    return lines.slice(0, 2).map((l, i, a) => (l.length > perLine || (i === 1 && lines.length > 2) ? `${l.slice(0, perLine - 1)}…` : l));
+  };
   const rects = bars.map((b, i) => {
     const x = i * bw + bw * 0.14, w = bw * 0.72, y1 = y(Math.max(b.from, b.to)), y2 = y(Math.min(b.from, b.to));
     const h = Math.max(1.5, y2 - y1);
@@ -147,7 +155,7 @@ export function waterfallHtml(state) {
     const amount = b.kind === 'step' ? b.to - b.from : b.to;
     return `<g class="${cls}"><title>${esc(b.label)}: ${esc(fmt(amount))}${b.entries ? ` (${b.entries} fix${b.entries === 1 ? '' : 'es'})` : ''}</title><rect x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="1.5"></rect>`
       + `<text class="wf-amt" x="${(x + w / 2).toFixed(1)}" y="${(y1 - 4).toFixed(1)}">${esc(b.kind === 'step' && amount > 0 ? `+${fmt(amount)}` : fmt(amount))}</text>`
-      + `<text class="wf-label" x="${(x + w / 2).toFixed(1)}" y="${H - bottom + 14}">${esc(short(b.label))}</text></g>`
+      + `<text class="wf-label" x="${(x + w / 2).toFixed(1)}" y="${H - bottom + 14}">${wrap(b.short ?? b.label).map((l, j) => `<tspan x="${(x + w / 2).toFixed(1)}" dy="${j ? 11 : 0}">${esc(l)}</tspan>`).join('')}</text></g>`
       + (i < bars.length - 1 ? `<line class="wf-link" x1="${(x + w).toFixed(1)}" x2="${((i + 1) * bw + bw * 0.14).toFixed(1)}" y1="${y(b.to).toFixed(1)}" y2="${y(b.to).toFixed(1)}"></line>` : '');
   }).join('');
   const table = `<table class="sr-only"><caption>How the difference moves to zero</caption><thead><tr><th>Step</th><th>Fixes</th><th>Change</th><th>Difference after</th></tr></thead><tbody>`
