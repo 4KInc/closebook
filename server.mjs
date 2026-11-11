@@ -214,12 +214,12 @@ async function route(req, res) {
   }
 
   if (req.method === 'GET' && p === '/api/sandbox-books.csv') {
-    res.writeHead(200, { 'content-type': 'text/csv', 'content-disposition': `attachment; filename="sandbox-${SANDBOX.period}-books.csv"` });
+    res.writeHead(200, { 'content-type': 'text/csv', 'content-disposition': `attachment; filename="test-shop-books-${SANDBOX.period}.csv"` });
     return res.end(await readFile(SANDBOX.file, 'utf8'));
   }
 
   if (req.method === 'GET' && p === '/api/demo-ledger.csv') {
-    res.writeHead(200, { 'content-type': 'text/csv', 'content-disposition': 'attachment; filename="demo-ledger.csv"' });
+    res.writeHead(200, { 'content-type': 'text/csv', 'content-disposition': 'attachment; filename="example-books.csv"' });
     return res.end(demoMonth().ledgerCsv + '\n');
   }
 
