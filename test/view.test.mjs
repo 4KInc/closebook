@@ -49,3 +49,24 @@ test('PayPal fields, dispute text, AI text and rejection reasons are rendered as
     noHtml(statusChip({ ...ex, status: 'covered', coveredBy: XSS }));
   }
 });
+
+test('the waterfall starts at the opening difference, steps by category of approved entries, and ends where the close is', async () => {
+  const { waterfallSteps, waterfallHtml } = await import('../public/view.mjs');
+  const { ruleFix, approve, summary } = await import('../src/close.mjs');
+  const d = demoMonth();
+  const close = openClose({ paypal: paypalRows(d.transaction_details), ledger: ledgerRows(d.ledgerCsv), period: d.period });
+  const v = () => ({ ...close, summary: summary(close), config: { categories: Object.fromEntries(Object.entries(CATEGORIES).map(([k, x]) => [k, x.label])) } });
+  let w = waterfallSteps(v());
+  assert.deepEqual([w.start, w.steps.length, w.end], [-89744, 0, -89744]);
+  for (const e of close.exceptions.filter((x) => x.source === 'fee')) { propose(close, e.id, ruleFix(close, e)); approve(close, e.id); }
+  w = waterfallSteps(v());
+  assert.equal(w.start, -89744);
+  assert.equal(w.steps.length, 1);
+  assert.equal(w.steps[0].entries, 23);
+  assert.equal(w.end, -82515);
+  assert.equal(w.steps.at(-1).to, w.end, 'the steps land exactly on the difference now');
+  const html = waterfallHtml(v());
+  assert.match(html, /<svg class="wf"/);
+  assert.match(html, /<table class="sr-only"><caption>How the difference moves to zero/);
+  assert.ok(html.includes('-$897.44') && html.includes('-$825.15'));
+});

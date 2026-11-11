@@ -1,6 +1,6 @@
 /* closebook front end: one AG Grid per tab, a detail panel, and calls to the server's JSON API.
    The HTML itself is built in view.mjs, where every value from the books or PayPal is escaped. */
-import { fmt, words, esc, badge, statusChip, byBadge, itemsLabel, entryText, voucherHtml, itemsCellHtml } from './view.mjs';
+import { fmt, words, esc, badge, statusChip, byBadge, itemsLabel, entryText, voucherHtml, itemsCellHtml, waterfallHtml } from './view.mjs';
 const $ = (id) => document.getElementById(id);
 let state = null;
 let tab = 'exceptions';
@@ -78,6 +78,7 @@ function render() {
     const day = (x) => esc((x.asOf ?? x.asked ?? '').replace('T', ' ').slice(0, 16));
     $('balcheck').innerHTML = `<span>PayPal's own balance (Balances API): <b>${fmt(b.opening.total)}</b> at ${day(b.opening)} → <b>${fmt(b.closing.total)}</b> at ${day(b.closing)} UTC, moved <b>${fmt(b.moved)}</b>; Transaction Search net <b>${fmt(b.activity)}</b>.</span>${b.gap === 0 ? '<span class="ok">✓ every transaction accounted for</span>' : `<span class="off">✗ ${fmt(b.gap)} not in the transactions read</span>`}`;
   }
+  $('waterfall').innerHTML = waterfallHtml(state);
   $('ticks').innerHTML = kinds.map((k) => `<span class="tick ${k}"></span>`).join('');
   const n = (k) => kinds.filter((x) => x === k).length;
   $('counts').innerHTML = `<span><b>${s.matched}</b> matched by rule</span><span class="k-done"><i></i><b>${n('done')}</b> settled</span><span class="k-ready"><i></i><b>${n('ready')}</b> ready to approve</span>${n('fail') ? `<span class="k-fail"><i></i><b>${n('fail')}</b> failing checks</span>` : ''}<span><i></i><b>${n('open') + n('pending')}</b> open</span>`;

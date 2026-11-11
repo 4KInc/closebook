@@ -90,3 +90,48 @@ export function voucherHtml(state, e, tab = 'exceptions') {
 export function itemsCellHtml(e, label) {
   return `${e.flags?.length ? badge('bad', 'Flag', `Untrusted text addressed to the AI: ${e.flags.map((f) => f.text).join(' / ')}`) + ' ' : ''}${e.hints?.length ? badge('warn', 'Hint', e.hints.map((h) => h.detail).join('; ')) + ' ' : ''}${esc(label)}`;
 }
+
+// How the difference goes to zero: the starting difference, one step per category of approved
+// entries (how much they moved the difference), and where it stands now. Built from the close the
+// server sent; every number is the server's.
+export function waterfallSteps(state) {
+  const s = state.summary;
+  const start = s.difference + s.adjustments; // before any approved entry
+  const byCat = new Map();
+  for (const e of state.exceptions) {
+    if (e.status !== 'approved') continue;
+    const moved = e.fix.lines.reduce((a, l) => a + (l.account === '1010' ? (l.debit || 0) - (l.credit || 0) : 0), 0);
+    const c = byCat.get(e.fix.category) ?? { category: e.fix.category, label: state.config?.categories?.[e.fix.category] ?? e.fix.category, entries: 0, moved: 0 };
+    c.entries++; c.moved += moved; byCat.set(e.fix.category, c);
+  }
+  let at = start;
+  const steps = [...byCat.values()].sort((a, b) => Math.abs(b.moved) - Math.abs(a.moved)).map((c) => { const from = at; at -= c.moved; return { ...c, from, to: at }; });
+  return { start, steps, end: s.difference };
+}
+
+// Plain SVG, no library: bars from zero for the start and the end, floating bars for each step.
+// A table with the same numbers is there for screen readers.
+export function waterfallHtml(state) {
+  const { start, steps, end } = waterfallSteps(state);
+  const bars = [{ kind: 'total', label: 'Starting difference', from: 0, to: start }, ...steps.map((s) => ({ kind: 'step', label: s.label, from: s.from, to: s.to, entries: s.entries })), { kind: end === 0 ? 'zero' : 'total', label: end === 0 ? 'Difference now' : 'Still to settle', from: 0, to: end }];
+  const vals = bars.flatMap((b) => [b.from, b.to]);
+  const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals), span = hi - lo || 1;
+  const W = 760, H = 150, top = 18, bottom = 40, bw = Math.min(W / bars.length, 120);
+  const y = (v) => top + ((hi - v) / span) * (H - top - bottom);
+  const short = (t) => (t.length > 15 ? `${t.slice(0, 14)}…` : t);
+  const rects = bars.map((b, i) => {
+    const x = i * bw + bw * 0.14, w = bw * 0.72, y1 = y(Math.max(b.from, b.to)), y2 = y(Math.min(b.from, b.to));
+    const h = Math.max(1.5, y2 - y1);
+    const cls = b.kind === 'step' ? 'wf-step' : b.kind === 'zero' ? 'wf-zero' : 'wf-total';
+    const amount = b.kind === 'step' ? b.to - b.from : b.to;
+    return `<g class="${cls}"><title>${esc(b.label)}: ${esc(fmt(amount))}${b.entries ? ` (${b.entries} entr${b.entries === 1 ? 'y' : 'ies'})` : ''}</title><rect x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="1.5"></rect>`
+      + `<text class="wf-amt" x="${(x + w / 2).toFixed(1)}" y="${(y1 - 4).toFixed(1)}">${esc(b.kind === 'step' && amount > 0 ? `+${fmt(amount)}` : fmt(amount))}</text>`
+      + `<text class="wf-label" x="${(x + w / 2).toFixed(1)}" y="${H - bottom + 14}">${esc(short(b.label))}</text></g>`
+      + (i < bars.length - 1 ? `<line class="wf-link" x1="${(x + w).toFixed(1)}" x2="${((i + 1) * bw + bw * 0.14).toFixed(1)}" y1="${y(b.to).toFixed(1)}" y2="${y(b.to).toFixed(1)}"></line>` : '');
+  }).join('');
+  const table = `<table class="sr-only"><caption>How the difference moves to zero</caption><thead><tr><th>Step</th><th>Entries</th><th>Change</th><th>Difference after</th></tr></thead><tbody>`
+    + `<tr><td>Starting difference</td><td></td><td></td><td>${esc(fmt(start))}</td></tr>`
+    + steps.map((s) => `<tr><td>${esc(s.label)}</td><td>${s.entries}</td><td>${esc(fmt(s.to - s.from))}</td><td>${esc(fmt(s.to))}</td></tr>`).join('')
+    + `</tbody></table>`;
+  return `<svg class="wf" viewBox="0 0 ${W} ${H}" aria-hidden="true"><line class="wf-zero-line" x1="0" x2="${(bars.length * bw).toFixed(1)}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}"></line>${rects}</svg>${table}`;
+}
