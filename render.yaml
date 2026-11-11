@@ -4,7 +4,7 @@ services:
   - type: web
     name: closebook
     runtime: node
-    plan: free # sleeps after about 15 idle minutes; the first visit then takes about 40 seconds
+    plan: starter # 0.5 CPU, 512 MB, always on: no cold start for judges (free instances sleep when idle)
     buildCommand: npm ci --omit=dev
     startCommand: node server.mjs
     healthCheckPath: /health

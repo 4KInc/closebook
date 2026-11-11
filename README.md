@@ -7,8 +7,7 @@ against the books, and has Claude propose a journal entry for every line that do
 approve it**, and the person can correct it in place.
 
 > **For judges: two minutes, no setup.** Open
-> [closebook-uju5.onrender.com](https://closebook-uju5.onrender.com). It runs on Render's free plan:
-> if it has been idle, the first visit shows Render's "waking up" screen for about 40 seconds.
+> [closebook-uju5.onrender.com](https://closebook-uju5.onrender.com).
 >
 > 1. **Close November from PayPal**: a test shop's real PayPal sandbox account, read live
 >    (Transaction Search, the Balances API and the Disputes API), against
@@ -624,7 +623,7 @@ node scripts/record.mjs --from eval/results-demo-....json                  # mak
 - **AG Grid** Community for the review grids (filters on every column, pinned totals rows, status
   badges, cell flashing on approval) and for the editable journal entry in the fix panel (select and text
   cell editors, a live totals row, every edit re-checked by the server)
-- **Render** for the live demo: a Blueprint (`render.yaml`) on the free plan, a health check,
+- **Render** for the live demo: a Blueprint (`render.yaml`) on an always-on instance, a health check,
   graceful shutdown, auto-deploy from `main`
 - Node 24, no web framework; two dependencies
 

@@ -2,7 +2,7 @@
 
 **Month-end close for PayPal businesses: Claude proposes, code proves, a person approves.**
 
-Live: https://closebook-uju5.onrender.com (no login; on Render's free plan, the first visit after an idle spell takes about 40 seconds to wake) · Code: https://github.com/4KInc/closebook (MIT) · Video: <VIDEO_URL>
+Live: https://closebook-uju5.onrender.com (no login) · Code: https://github.com/4KInc/closebook (MIT) · Video: <VIDEO_URL>
 
 ---
 
@@ -210,7 +210,7 @@ https://github.com/4KInc/closebook/tree/main/eval
   the server, which re-runs all nine checks.
 - **APIMatic**: PayPal's Server SDK, which APIMatic generates, is how closebook reads Transaction
   Search and Balances; the APIMatic Context Plugin was used to look up the endpoints.
-- **Render**: the live site runs from a Blueprint (`render.yaml`) on the free plan, with a
+- **Render**: the live site runs from a Blueprint (`render.yaml`) on an always-on instance, with a
   health check, graceful shutdown on SIGTERM, and auto-deploy from `main`.
 
 ## Limitations
