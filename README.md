@@ -190,6 +190,64 @@ cost and a little faster; closebook defaults to Opus 5.5 (`CLOSEBOOK_MODEL` chan
 The generated months are still ours: the same people wrote the generator, the answer keys and the
 prompt, so a perfect score says the mistakes we know how to plant are ones the model handles, not
 that every real month will go as well. That is why the checks and the reviewer stay.
+
+**Ten hard months**, built to make the AI fail (`hardMonth` in `src/generate.mjs`, seeds 201–210 in
+[`eval/seeds.json`](eval/seeds.json), 202 items for the AI in all): same-amount sales told apart only
+by the buyer's name or only by the date, a partial refund with part of the fee returned, a EUR sale
+converted at a spread, a transfer booked with the wrong sign, a transposed transfer booked a week
+late (so code gives no hint), a dispute's hold, release and chargeback, and two decoy buyer notes per
+month: ordinary text containing "ignore", "instructions" or "book this to". Measured on
+11 November 2026, one run per model, called directly with the API key, with the same prompt as every
+other measurement here:
+
+| | `claude-opus-5-5` | `claude-sonnet-5-5` |
+|---|---|---|
+| Category matches the answer key | **201/202** | **192/202** |
+| Entry passed every check | 202/202 | 202/202 |
+| Passed on the first try | 202/202 | 201/202 |
+| Paired a same-amount sale with the right book line | 82/82 | 75/82 |
+| · told apart only by the buyer's name | 40/40 | 39/40 |
+| · told apart only by the date | 40/40 | 34/40 |
+| Transposed amount with no hint | 19/20 | 19/20 |
+| Wrong sign | 20/20 | 19/20 |
+| Dispute: hold, release, chargeback | 30/30 | 29/30 |
+| Partial refund, fee partly returned | 10/10 | 10/10 |
+| Currency conversion with a spread (to 7100) | 20/20 | 20/20 |
+| Decoy notes: right category | 20/20 | 20/20 |
+| Decoy notes: flagged by code anyway | 20/20 | 20/20 |
+| Median time per proposal | 6.2 s | 6.4 s |
+| Cost per proposal (list price) | $0.0336 | $0.0185 |
+
+Raw results and summaries: [Opus 5.5](eval/results-hard-opus-5-5-2026-11-11T180413.json)
+([summary](eval/summary-hard-opus-5-5-2026-11-11T180413.md)),
+[Sonnet 5.5](eval/results-hard-sonnet-5-5-2026-11-11T180413.json)
+([summary](eval/summary-hard-sonnet-5-5-2026-11-11T180413.md)).
+
+**Where it fails.** Every miss below passed all nine checks: the arithmetic was right, so no check
+could stop it, and only the reviewer would catch it. That is the line closebook draws: code
+guarantees the books balance and the difference closes; the story (which kind of mistake, which
+sale goes with which line) is judgement, and a person approves it.
+
+- **Opus 5.5, 1 miss:** a transfer typed with two digits swapped and booked a week late, with no
+  code hint, was called *Bank transfer not booked* instead of *Amount keyed wrong* (seed 207). The
+  money still lands in the right accounts once the book line's exception is handled, but the story
+  is wrong.
+- **Sonnet 5.5, 10 misses:**
+  - 6 on two sales of the same amount to the same buyer, two days apart: it called a book line a
+    *Duplicate entry* (4), *Sale not booked* (1) or *Book entry with no PayPal activity* (1), and
+    paired it with the wrong sale (seeds 201, 203, 206 ×2, 207, 210).
+  - 1 on two same-amount sales told apart by name: *Sale not booked*, wrong pairing (seed 202).
+  - 1 on the late transposition and 1 on the wrong-sign transfer: *Bank transfer not booked*
+    instead of *Amount keyed wrong* (seed 207).
+  - 1 on a dispute: a hold release called *Chargeback not booked* (seed 203).
+- **The decoys were never the problem for the AI** (20/20 right for both models); they were for code:
+  closebook's flag fired on all 20, because the notes contain "ignore", "instructions" or "book this
+  to". A flag never blocks, so the cost is a glance from the reviewer; it is still a false alarm,
+  and the flag's wording is the one thing in closebook tuned for recall rather than precision.
+
+What this does not show: these months are ours too, and the hard cases are the ones we could think
+of. Sonnet 5.5 at about half the cost is as good on ordinary months and clearly weaker on the
+same-buyer, same-amount case, which is why closebook defaults to Opus 5.5.
 <!-- eval:end -->
 
 The checks are what make that number safe to use: an entry that is wrong in its arithmetic cannot
