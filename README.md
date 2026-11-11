@@ -12,10 +12,10 @@ approve it**, and the person can correct it in place.
 > 1. **Close November from PayPal**: a test shop's real PayPal sandbox account, read live
 >    (Transaction Search, the Balances API and the Disputes API), against
 >    [its four-line books](samples/sandbox-2026-11-books.csv). Under the three tiles the screen
->    says the PayPal balance went from $5,000.00 to $5,038.82, *✓ every PayPal payment is
+>    says the PayPal balance went from $5,000.00 to $4,969.34, *✓ every PayPal payment is
 >    accounted for*. The $72.50 *Serving platter* sale carries a real buyer dispute we opened in the
->    sandbox ([below](#closed-against-a-real-paypal-sandbox-account)). Click **Suggest fixes**,
->    then approve: −$120.68 becomes **$0.00**.
+>    sandbox, and PayPal's $69.48 hold for it ([below](#closed-against-a-real-paypal-sandbox-account)).
+>    Click **Suggest fixes**, then approve: −$190.16 becomes **$0.00**.
 > 2. **Open the demo month**: a ceramics shop's October with planted mistakes, including a
 >    chargeback with its dispute (built in the Disputes API's shape) and two lines of text written
 >    to steer the AI. **Suggest fixes**: standard fixes for the 23 missing PayPal fees, and an AI
@@ -109,7 +109,8 @@ right to the cent, is what takes the hours.
 [`samples/`](samples/sandbox-2026-11-books.csv).
 
 closebook has its own sandbox REST app with the **Transaction search** permission. Its November
-2026 activity, read through Transaction Search, is ten rows:
+2026 activity, read through Transaction Search, was ten rows until the buyer dispute below added an
+eleventh, PayPal's hold:
 
 - two Payouts (T0001, $90.00 plus a $0.25 fee each), and for each the hold PayPal placed and
   released around it (T1503, T1105);
@@ -133,7 +134,8 @@ not booked.
 
 Four lines matched, ten exceptions, eight entries approved (two of them settled a hold and its
 release together), and the difference went from −$120.68 to **$0.00**. That run was on a local
-server on 11 November 2026, after the sales reached Transaction Search. Earlier the same day, before
+server on 11 November 2026, after the sales reached Transaction Search and before the dispute
+below. Earlier the same day, before
 they appeared, the live site closed the six payout rows from −$90.50 to $0.00 the same way. In one
 earlier local run Claude put the unbooked payout in 3999 Suspense instead of 5100: both pass the
 checks, because the account is a judgement the checks cannot make. That is what the reviewer's
@@ -157,11 +159,26 @@ The November close now shows it on that sale's fix panel: *Buyer dispute · buye
 never arrived · waiting for you · at the inquiry stage*, and Claude sees it in its prompt. The
 response, scrubbed of the buyer's payer ID and the merchant ID, is a test fixture
 ([`test/fixtures/sandbox-dispute-2026-11.json`](test/fixtures/sandbox-dispute-2026-11.json)). An
-inquiry moves no money, so it changes no amounts: the month still opens at −$120.68 and closes to
-$0.00, and PayPal's balance still matches every payment read.
+inquiry itself moves no money; the hold PayPal placed for it did.
 <!-- hold:start -->
-Whether PayPal places a hold on the disputed amount (which Transaction Search can take up to three
-hours to show) is being checked every 15 minutes until 4:30 pm Central on 11 November.
+**PayPal's hold, and the month closed again.** PayPal held the sale's net, $69.48 ($72.50 less the
+$3.02 fee), as a T1110 *hold for dispute* (`8LV00624U3201293X`, referring to the sale), dated
+18:28 UTC, three minutes after the dispute opened. Transaction Search first showed it at 20:16 UTC,
+almost two hours later. With it, the month is eleven rows and opens at **−$190.16** (−$120.68 less
+the $69.48 hold), and PayPal's own balance moved **−$30.66** ($5,000.00 to $4,969.34, as of 18:29
+UTC), exactly the net of the eleven transactions: every payment still accounted for.
+
+Closed again on a local server with live Claude on 11 November 2026, the hold became one new item:
+
+| Item | Proposed by | Entry | Checks |
+|---|---|---|---|
+| $69.48 dispute hold on the Serving platter sale, not booked | Claude | Dr 1210 PayPal funds on hold $69.48, Cr 1010 PayPal clearing $69.48 | pass, first try |
+
+Claude's explanation named the dispute it had been shown: the hold was placed "because the buyer
+opened dispute PP-R-FVS-10199012 for item not received". Every entry was approved and the month
+closed from −$190.16 to **$0.00**. Claude's November proposals were then re-recorded with the hold
+([`eval/recorded-paypal-2026-11.json`](eval/recorded-paypal-2026-11.json), 7 proposals, all passing
+the checks first time), so the month also closes to $0.00 on saved suggestions alone.
 <!-- hold:end -->
 
 ## How accurate is the AI
@@ -326,8 +343,9 @@ amounts, and a person approves every entry.
 
 ## Walk through the demo month
 
-0. For a real month instead, click **Close November from PayPal** on the home page: ten real
-   sandbox transactions against four lines of books, −$120.68 to $0.00 the same way.
+0. For a real month instead, click **Close November from PayPal** on the home page: eleven real
+   sandbox transactions (including a dispute hold) against four lines of books, −$190.16 to $0.00
+   the same way.
 1. Click **Open the demo month**. The tiles read **PayPal this month** $175.23, **Your books**
    $1,072.67, **Difference** −$897.44. Under them: 31 matched automatically, 39 to review,
    the PayPal balance line with ✓, and the waterfall, which so far has one red bar.
