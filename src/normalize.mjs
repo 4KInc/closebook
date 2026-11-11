@@ -38,6 +38,19 @@ export function balanceRow(raw, currency = 'USD') {
   };
 }
 
+// Disputes API items, keyed by the disputed (original) transaction, into plain rows.
+export function disputeRows(byTransaction = {}) {
+  const out = {};
+  for (const [tx, items] of Object.entries(byTransaction ?? {})) {
+    out[tx] = items.map((d) => ({
+      id: d.dispute_id, reason: d.reason ?? null, status: d.status ?? null, stage: d.dispute_life_cycle_stage ?? null,
+      outcome: d.dispute_outcome?.outcome_code ?? null, amount: d.dispute_amount ? cents(d.dispute_amount.value) : null,
+      opened: (d.create_time ?? '').slice(0, 10) || null,
+    }));
+  }
+  return out;
+}
+
 // CSV with a header row. Required columns: date, amount. Optional: id, memo, ref.
 // `amount` is the signed change to the PayPal clearing account (money in is positive).
 export function parseCsv(text) {

@@ -113,3 +113,16 @@ test('transposition: the $1,980.00 transfer booked as $1,890.00 is pointed out b
   assert.match(je.approvedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.deepEqual(je.covers, [onPaypal.id]);
 });
+
+test('the dispute behind a chargeback reaches the AI\'s prompt, from the Disputes API shape', async () => {
+  const { demoMonth } = await import('../src/demo.mjs');
+  const { paypalRows: rows, ledgerRows: books, disputeRows } = await import('../src/normalize.mjs');
+  const { openClose: open, disputedIds } = await import('../src/close.mjs');
+  const { prompt } = await import('../src/claude.mjs');
+  const d = demoMonth();
+  const paypal = rows(d.transaction_details);
+  assert.deepEqual([...new Set(disputedIds(paypal))], Object.keys(d.disputes));
+  const close = open({ paypal, ledger: books(d.ledgerCsv), period: d.period, disputes: disputeRows(d.disputes) });
+  const cb = close.exceptions.find((e) => e.paypal.length && paypal.find((t) => t.id === e.paypal[0]).code === 'T1201');
+  assert.match(prompt(close, cb), /PayPal dispute PP-D-48213: reason MERCHANDISE_OR_SERVICE_NOT_RECEIVED, status RESOLVED, stage CHARGEBACK, outcome RESOLVED_BUYER_FAVOUR/);
+});

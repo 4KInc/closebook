@@ -11,6 +11,7 @@ const fmt = (c) => {
   const a = Math.abs(c), s = `${Math.floor(a / 100).toLocaleString('en-US')}.${String(a % 100).padStart(2, '0')}`;
   return c < 0 ? `-$${s}` : `$${s}`;
 };
+const words = (code) => String(code ?? '').toLowerCase().replace(/_/g, ' ');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 async function api(path, opts = {}) {
@@ -241,7 +242,7 @@ function drawDetail() {
   const byP = new Map(state.paypal.map((t) => [t.id, t]));
   const byL = new Map(state.ledger.map((l) => [l.id, l]));
   const doc = (kind, id) => {
-    if (kind === 'p') { const t = byP.get(id); return `<div class="doc"><span class="src">PayPal</span><span class="what">${esc(t.code)} · ${esc(t.subject ?? t.kind)}</span><span class="amt ${t.net < 0 ? 'neg' : ''}">${fmt(t.net)}</span><span class="sub">${esc(t.date)} · ${esc(id)} · gross ${fmt(t.gross)}, fee ${fmt(t.fee)}${t.ref ? ` · refers to ${esc(t.ref)}` : ''}</span></div>`; }
+    if (kind === 'p') { const t = byP.get(id); return `<div class="doc"><span class="src">PayPal</span><span class="what">${esc(t.code)} · ${esc(t.subject ?? t.kind)}</span><span class="amt ${t.net < 0 ? 'neg' : ''}">${fmt(t.net)}</span><span class="sub">${esc(t.date)} · ${esc(id)} · gross ${fmt(t.gross)}, fee ${fmt(t.fee)}${t.ref ? ` · refers to ${esc(t.ref)}` : ''}</span>${(state.disputes?.[t.ref] ?? state.disputes?.[t.id] ?? []).map((d) => `<span class="dispute">PayPal dispute ${esc(d.id)} · ${esc(words(d.reason))} · ${esc(words(d.status))}${d.stage ? ` · ${esc(words(d.stage))}` : ''}${d.outcome ? ` · ${esc(words(d.outcome))}` : ''}</span>`).join('')}</div>`; }
     const l = byL.get(id); return `<div class="doc"><span class="src">Books</span><span class="what">${esc(l.memo || '(no memo)')}</span><span class="amt ${l.amount < 0 ? 'neg' : ''}">${fmt(l.amount)}</span><span class="sub">${esc(l.date)} · line ${esc(id)}${l.ref ? ` · ref ${esc(l.ref)}` : ''}</span></div>`;
   };
   const found = e.source === 'fee' ? 'Fee not booked' : e.source === 'paypal' ? 'Only in PayPal' : 'Only in the books';

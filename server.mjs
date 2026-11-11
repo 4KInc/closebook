@@ -12,10 +12,10 @@ import { randomUUID } from 'node:crypto';
 import { extname, join, sep, normalize as normPath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { demoMonth } from './src/demo.mjs';
-import { paypalRows, ledgerRows, balanceRow } from './src/normalize.mjs';
-import { openClose, ruleFix, propose, approve, reject, edit, summary, journal } from './src/close.mjs';
+import { paypalRows, ledgerRows, balanceRow, disputeRows } from './src/normalize.mjs';
+import { openClose, disputedIds, ruleFix, propose, approve, reject, edit, summary, journal } from './src/close.mjs';
 import { proposeWithClaude, MODEL } from './src/claude.mjs';
-import { fetchMonth, fetchBalances, paypalConfigured, probe, PayPalError } from './src/paypal.mjs';
+import { fetchMonth, fetchBalances, fetchDisputes, paypalConfigured, probe, PayPalError } from './src/paypal.mjs';
 import { CATEGORIES } from './src/codes.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
@@ -75,6 +75,7 @@ function view(s) {
     summary: summary(c),
     paypal: c.paypal, ledger: c.ledger, foreign: c.foreign,
     matches: c.matches,
+    disputes: c.disputes ?? {},
     outside: c.outside ?? 0,
     exceptions: c.exceptions,
     decisions: c.decisions,
@@ -146,7 +147,11 @@ async function closeFromPayPal(s, res, period, ledgerCsv, label) {
     return json(res, 400, { error: e.message });
   }
   if (!details.length) return json(res, 404, { error: `PayPal returned no balance-affecting transactions for ${period}. New transactions can take up to three hours to appear in Transaction Search.` });
-  s.close = openClose({ paypal: paypalRows(details), ledger, period, balances });
+  // Disputes behind any holds and chargebacks: extra context for the AI and the reviewer, never
+  // required, so a failure only means the close opens without them.
+  const rows = paypalRows(details);
+  const disputes = disputeRows(await fetchDisputes(disputedIds(rows)).catch((e) => { console.warn(`[paypal] disputes ${period}: ${e.message}`); return {}; }));
+  s.close = openClose({ paypal: rows, ledger, period, balances, disputes });
   s.source = { kind: 'paypal', label };
   return json(res, 200, view(s));
 }
@@ -162,7 +167,7 @@ async function route(req, res) {
 
   if (req.method === 'POST' && p === '/api/close/demo') {
     const d = demoMonth();
-    s.close = openClose({ paypal: paypalRows(d.transaction_details), ledger: ledgerRows(d.ledgerCsv), period: d.period, balances: { opening: balanceRow(d.balances.opening), closing: balanceRow(d.balances.closing) } });
+    s.close = openClose({ paypal: paypalRows(d.transaction_details), ledger: ledgerRows(d.ledgerCsv), period: d.period, balances: { opening: balanceRow(d.balances.opening), closing: balanceRow(d.balances.closing) }, disputes: disputeRows(d.disputes) });
     s.source = { kind: 'demo', label: `Demo month: ${d.shop}, ${d.period}` };
     return json(res, 200, view(s));
   }

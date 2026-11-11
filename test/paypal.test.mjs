@@ -2,7 +2,7 @@
 // splitting and the error messages a person sees. No network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchMonth, fetchBalances, probe, withRetry, PayPalError } from '../src/paypal.mjs';
+import { fetchMonth, fetchBalances, fetchDisputes, probe, withRetry, PayPalError } from '../src/paypal.mjs';
 import { balanceRow } from '../src/normalize.mjs';
 
 const ENV = { PAYPAL_CLIENT_ID: 'id', PAYPAL_CLIENT_SECRET: 'secret' };
@@ -82,4 +82,21 @@ test('balances are read at the start and end of the month, in cents, with the ti
   assert.equal(balanceRow(b.opening).total, 500000);
   assert.equal(balanceRow(b.closing).total, 503882);
   assert.equal(balanceRow(b.closing, 'EUR'), null);
+});
+
+test('disputes are looked up once per disputed transaction, with one token, and a 429 is retried', async () => {
+  const calls = [];
+  let limited = false;
+  const fetch = async (url, init) => {
+    calls.push(url.replace(/^https:\/\/[^/]+/, ''));
+    const reply = (status, body) => ({ ok: status < 400, status, text: async () => JSON.stringify(body), headers: [] });
+    if (url.endsWith('/v1/oauth2/token')) { assert.match(init.headers.authorization, /^Basic /); return reply(200, { access_token: 't' }); }
+    if (!limited) { limited = true; return reply(429, {}); }
+    return reply(200, { items: url.includes('SALE1') ? [{ dispute_id: 'PP-D-1', reason: 'UNAUTHORISED', status: 'OPEN' }] : [] });
+  };
+  const out = await fetchDisputes(['SALE1', 'SALE1', 'SALE2'], ENV, { fetch, ...quiet });
+  assert.deepEqual(Object.keys(out), ['SALE1']);
+  assert.equal(calls.filter((c) => c.includes('oauth2')).length, 1);
+  assert.deepEqual(calls.filter((c) => c.includes('disputes')).map((c) => c.split('disputed_transaction_id=')[1].split('&')[0]), ['SALE1', 'SALE1', 'SALE2']);
+  assert.deepEqual(await fetchDisputes([], ENV, { fetch: () => assert.fail('no call for no ids') }), {});
 });

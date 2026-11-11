@@ -86,6 +86,14 @@ export function demoMonth(seed = 7) {
   details.push(tx(hold), tx(release), tx(reversal));
   planted.push({ kind: 'hold_not_booked', paypal: hold.id }, { kind: 'hold_not_booked', paypal: release.id }, { kind: 'reversal_not_booked', paypal: reversal.id });
 
+  // What the Disputes API says about it, in the API's own shape: the buyer said the plates never
+  // arrived, the card issuer escalated it to a chargeback, and the buyer won.
+  const disputes = { [disputed.id]: [{
+    dispute_id: 'PP-D-48213', create_time: `${PERIOD}-${String(disputed.day + 6).padStart(2, '0')}T15:02:11.000Z`, update_time: `${PERIOD}-${String(disputed.day + 9).padStart(2, '0')}T10:40:51.000Z`,
+    reason: 'MERCHANDISE_OR_SERVICE_NOT_RECEIVED', status: 'RESOLVED', dispute_amount: money(disputed.gross),
+    dispute_life_cycle_stage: 'CHARGEBACK', dispute_channel: 'EXTERNAL', dispute_outcome: { outcome_code: 'RESOLVED_BUYER_FAVOUR' },
+  }] };
+
   // A payout to the kiln technician, sent through PayPal and never booked.
   const payout = { id: id(), code: 'T0001', day: 18, gross: -32500, fee: -50, subject: 'Kiln service - October' };
   details.push(tx(payout));
@@ -110,5 +118,5 @@ export function demoMonth(seed = 7) {
   const balance = (c, at) => ({ balances: [{ currency: 'USD', total_balance: money(c), available_balance: money(c), withheld_balance: money(0) }], as_of_time: at, last_refresh_time: at, asked: at });
   const balances = { opening: balance(opening, `${PERIOD}-01T00:00:00Z`), closing: balance(opening + net, `${PERIOD}-31T23:59:59Z`) };
   const csv = ['id,date,amount,memo,ref', ...books.map((b) => [b.id, b.date, (b.amount / 100).toFixed(2), `"${b.memo.replace(/"/g, '""')}"`, b.ref ?? ''].join(','))].join('\n');
-  return { shop: SHOP, period: PERIOD, transaction_details: details, balances, ledgerCsv: csv, planted };
+  return { shop: SHOP, period: PERIOD, transaction_details: details, balances, disputes, ledgerCsv: csv, planted };
 }

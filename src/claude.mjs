@@ -46,10 +46,16 @@ Choose the category that describes what actually happened, and use the accounts 
 
 The memo is one line for the general ledger. The explanation is two or three plain sentences for the owner, naming the transaction IDs or book lines that show it.`;
 
+// What the Disputes API says about the original transaction a hold or chargeback refers to.
+function disputeText(close, t) {
+  const ds = close.disputes?.[t.ref] ?? close.disputes?.[t.id];
+  return ds?.length ? ds.map((d) => ` | PayPal dispute ${d.id}: reason ${d.reason}, status ${d.status}${d.stage ? `, stage ${d.stage}` : ''}${d.outcome ? `, outcome ${d.outcome}` : ''}`).join('') : '';
+}
+
 function itemTable(close, st) {
   const rows = [];
   for (const e of st.open.values()) {
-    for (const id of e.paypal) { const t = st.byP.get(id); rows.push(`PayPal ${t.id} | ${t.date} | ${t.code} (${t.kind}) | gross ${t.gross} fee ${t.fee} net ${t.net} | ${t.subject ?? ''}${t.payer ? ` | payer ${t.payer}` : ''}${t.ref ? ` | refers to ${t.ref}` : ''}${t.invoice ? ` | invoice ${t.invoice}` : ''} | exception ${e.id}`); }
+    for (const id of e.paypal) { const t = st.byP.get(id); rows.push(`PayPal ${t.id} | ${t.date} | ${t.code} (${t.kind}) | gross ${t.gross} fee ${t.fee} net ${t.net} | ${t.subject ?? ''}${t.payer ? ` | payer ${t.payer}` : ''}${t.ref ? ` | refers to ${t.ref}` : ''}${t.invoice ? ` | invoice ${t.invoice}` : ''}${disputeText(close, t)} | exception ${e.id}`); }
     for (const id of e.ledger) { const l = st.byL.get(id); rows.push(`Book ${l.id} | ${l.date} | amount ${l.amount} | ${l.memo}${l.ref ? ` | ref ${l.ref}` : ''} | exception ${e.id}`); }
   }
   return [...new Set(rows)].join('\n');

@@ -3,7 +3,7 @@
 import { match, tieOut, hints } from './match.mjs';
 import { check, CLEARING, CHART } from './check.mjs';
 
-export function openClose({ paypal, ledger, period, currency = 'USD', chart = CHART, balances = null }) {
+export function openClose({ paypal, ledger, period, currency = 'USD', chart = CHART, balances = null, disputes = {} }) {
   const inPeriod = (d) => !period || d.startsWith(period);
   const base = paypal.filter((t) => t.currency === currency && inPeriod(t.date));
   const foreign = paypal.filter((t) => t.currency !== currency && inPeriod(t.date));
@@ -12,6 +12,7 @@ export function openClose({ paypal, ledger, period, currency = 'USD', chart = CH
   const found = hints(exceptions, new Map(base.map((t) => [t.id, t])), new Map(books.map((l) => [l.id, l])));
   return {
     period, currency, chart,
+    disputes, // { originalTransactionId: [dispute rows] } from the Disputes API, for holds and chargebacks
     balances, // PayPal's own opening and closing balance, when read: { opening, closing } from balanceRow
     paypal: base, foreign, ledger: books, matches,
     outside: ledger.length - books.length, // book lines dated outside the period, left out of the close
@@ -131,4 +132,10 @@ export function summary(close) {
   const b = close.balances;
   const balance = b?.opening && b?.closing ? { opening: b.opening, closing: b.closing, moved: b.closing.total - b.opening.total, activity: t.paypalNet, gap: b.closing.total - b.opening.total - t.paypalNet } : null;
   return { ...t, balance, adjustments, matched: close.matches.length, open: count('open'), approved: count('approved'), covered: count('covered'), exceptions: close.exceptions.length };
+}
+
+// The transactions whose disputes are worth reading: the originals that holds and chargebacks
+// refer to.
+export function disputedIds(paypal) {
+  return paypal.filter((t) => (t.kind === 'hold' || t.kind === 'reversal') && t.ref).map((t) => t.ref);
 }

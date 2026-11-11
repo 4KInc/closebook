@@ -122,6 +122,34 @@ export async function fetchBalances(period, env = process.env, opts = {}) {
   return { opening: { ...opening, asked: startDate }, closing: { ...closing, asked: endDate } };
 }
 
+// The dispute behind a hold or a chargeback (`GET /v1/customer/disputes`). The Server SDK has no
+// disputes controller, so this is a plain REST call with the same app's client-credentials token.
+// Transaction Search says money was held or taken back; the dispute says why (item not received,
+// unauthorised, ...) and how it ended, which is what decides the entry. Read-only, like the rest.
+const API = (env) => (env.PAYPAL_ENVIRONMENT === 'production' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com');
+
+export async function fetchDisputes(transactionIds, env = process.env, opts = {}) {
+  const http = opts.fetch ?? fetch;
+  const ids = [...new Set(transactionIds)].slice(0, 25);
+  if (!ids.length) return {};
+  const call = async (url, init) => {
+    const res = await http(url, init);
+    const text = await res.text();
+    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { statusCode: res.status, body: text, headers: Object.fromEntries(res.headers ?? []) });
+    return JSON.parse(text);
+  };
+  const token = (await withRetry(() => call(`${API(env)}/v1/oauth2/token`, {
+    method: 'POST', body: 'grant_type=client_credentials',
+    headers: { authorization: `Basic ${Buffer.from(`${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`).toString('base64')}`, 'content-type': 'application/x-www-form-urlencoded' },
+  }), opts)).access_token;
+  const out = {};
+  for (const id of ids) {
+    const page = await withRetry(() => call(`${API(env)}/v1/customer/disputes?disputed_transaction_id=${encodeURIComponent(id)}&page_size=10`, { headers: { authorization: `Bearer ${token}` } }), opts);
+    if (page.items?.length) out[id] = page.items;
+  }
+  return out;
+}
+
 // A cheap check at startup: one transaction from the last day. Reports whether the credentials
 // work and whether the app has the Transaction search permission, without failing the server.
 export async function probe(env = process.env, opts = {}) {
