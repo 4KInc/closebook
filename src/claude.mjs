@@ -40,7 +40,7 @@ How the numbers work:
 - Amounts are integer cents. A PayPal transaction's net = gross + fee (fees are negative). A book line's amount is its signed effect on PayPal clearing.
 - The gap of a set of items = sum of PayPal net of the cited transactions - sum of the cited book line amounts.
 - Your entry must move account 1010 (debits minus credits) by exactly the gap of the items you cite. Debits must equal credits.
-- Cite the exception's own items, plus any other open items your entry also settles (for example the book line that was keyed with the wrong amount, or a related hold and its release). Do not cite items your entry does not settle.
+- Cite the exception's own items, plus any other open items your entry also settles (for example the book line that was keyed with the wrong amount, or a related hold and its release). Do not cite items your entry does not settle. Citing an item settles its whole exception, so if you cite any item of another exception, cite every item of that exception.
 
 Choose the category that describes what actually happened, and use the accounts a bookkeeper would expect: fees to 6100, refunds to 4900, chargebacks to 6150, payouts to contractors to 5100, transfers to the bank to 1000, dispute holds to 1210, duplicates and typos reversed against the account originally used (sales are 4000), and 3999 Suspense only when nothing else is supportable.
 

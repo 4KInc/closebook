@@ -35,6 +35,15 @@ export function check(fix, state, chart = CHART) {
   for (const id of ex.ledger) if (!cites.ledger.includes(id)) fail('cites', `must cite its own book line ${id}`);
   for (const id of cites.paypal) if (!openP.has(id)) fail('cites', `PayPal transaction ${id} is not part of an open exception`);
   for (const id of cites.ledger) if (!openL.has(id)) fail('cites', `book line ${id} is not part of an open exception`);
+  // Approval settles every exception the entry touches, so an entry that cites one item of another
+  // exception must cite all of them: otherwise it would settle that exception while moving
+  // clearing by only part of its gap, and the close could end with nothing open and a difference.
+  for (const e of state.open.values()) {
+    if (e.id === ex.id) continue;
+    const missing = [...e.paypal.filter((id) => !cites.paypal.includes(id)).map((id) => `PayPal transaction ${id}`), ...e.ledger.filter((id) => !cites.ledger.includes(id)).map((id) => `book line ${id}`)];
+    const touched = missing.length < e.paypal.length + e.ledger.length;
+    if (touched && missing.length) fail('cites', `cites part of exception ${e.id}; cite all of it (also ${missing.join(', ')}) or none of it`);
+  }
 
   let debit = 0, credit = 0, clearing = 0;
   const lines = fix.lines ?? [];

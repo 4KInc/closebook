@@ -129,6 +129,30 @@ test('a fix can settle several exceptions at once, and approval re-runs the chec
   assert.equal(release.coveredBy, hold.id);
 });
 
+test('an entry that cites part of another exception fails; citing all of it keeps the gaps adding up', () => {
+  const { close } = demo(); // fee exceptions still open
+  const ex = (pred) => close.exceptions.find(pred);
+  const st = stateOf(close);
+  const refund = ex((x) => x.source === 'paypal' && st.byP.get(x.paypal[0]).kind === 'refund' && close.exceptions.some((f) => f.source === 'fee' && f.paypal[0] === st.byP.get(x.paypal[0]).ref));
+  const sale = st.byP.get(st.byP.get(refund.paypal[0]).ref);
+  const feeEx = close.exceptions.find((f) => f.source === 'fee' && f.paypal[0] === sale.id);
+  const entry = (cites) => {
+    const g = cites.paypal.reduce((s, id) => s + st.byP.get(id).net, 0) - cites.ledger.reduce((s, id) => s + st.byL.get(id).amount, 0);
+    return { by: 'claude', category: 'refund_not_booked', cites, memo: 'refund', lines: g >= 0 ? [{ account: CLEARING, debit: g, credit: 0 }, { account: '4900', debit: 0, credit: g }] : [{ account: '4900', debit: -g, credit: 0 }, { account: CLEARING, debit: 0, credit: -g }] };
+  };
+  // The sale's PayPal transaction alone: would settle the fee exception for less than its gap.
+  propose(close, refund.id, entry({ paypal: [...refund.paypal, sale.id], ledger: [] }));
+  assert.equal(refund.check.ok, false);
+  assert.match(refund.check.failures.map((f) => f.detail).join(' '), new RegExp(`part of exception ${feeEx.id}`));
+  // The whole fee exception: allowed, and the open gaps still add up to the difference.
+  propose(close, refund.id, entry({ paypal: [...refund.paypal, sale.id], ledger: [...feeEx.ledger] }));
+  assert.equal(refund.check.ok, true, JSON.stringify(refund.check.failures));
+  approve(close, refund.id);
+  assert.equal(feeEx.status, 'covered');
+  const open = close.exceptions.filter((e) => e.status === 'open').reduce((s, e) => s + e.gap, 0);
+  assert.equal(open, summary(close).difference);
+});
+
 test('approval refuses a fix whose checks fail, and rejection records the reason', () => {
   const { close, ex } = setup();
   const e = ex((x) => x.source === 'books');
