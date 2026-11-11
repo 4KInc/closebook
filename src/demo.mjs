@@ -3,6 +3,8 @@
 // live data. The books are what a busy owner would have typed, with the usual mistakes planted.
 // Every planted mistake is listed in PLANTED, which the tests use as the answer key.
 
+import { cents } from './money.mjs';
+
 const SHOP = 'Juniper Ceramics';
 export const PERIOD = '2026-10';
 
@@ -101,6 +103,12 @@ export function demoMonth(seed = 7) {
 
   details.sort((a, b) => a.transaction_info.transaction_initiation_date.localeCompare(b.transaction_info.transaction_initiation_date));
   books.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  // PayPal's own balance at the start and end of the month, in the Balances API shape, so the demo
+  // goes through the same balance check as a live month. The shop started October with $2,412.50.
+  const opening = 241250;
+  const net = details.reduce((s, d) => s + cents(d.transaction_info.transaction_amount.value) + cents(d.transaction_info.fee_amount?.value), 0);
+  const balance = (c, at) => ({ balances: [{ currency: 'USD', total_balance: money(c), available_balance: money(c), withheld_balance: money(0) }], as_of_time: at, last_refresh_time: at, asked: at });
+  const balances = { opening: balance(opening, `${PERIOD}-01T00:00:00Z`), closing: balance(opening + net, `${PERIOD}-31T23:59:59Z`) };
   const csv = ['id,date,amount,memo,ref', ...books.map((b) => [b.id, b.date, (b.amount / 100).toFixed(2), `"${b.memo.replace(/"/g, '""')}"`, b.ref ?? ''].join(','))].join('\n');
-  return { shop: SHOP, period: PERIOD, transaction_details: details, ledgerCsv: csv, planted };
+  return { shop: SHOP, period: PERIOD, transaction_details: details, balances, ledgerCsv: csv, planted };
 }

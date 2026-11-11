@@ -28,6 +28,16 @@ export function paypalRows(details) {
   }).filter((r) => r.id);
 }
 
+// One Balances API answer into whole cents for one currency, or null if PayPal has no balance in it.
+export function balanceRow(raw, currency = 'USD') {
+  const b = (raw?.balances ?? []).find((x) => (x.currency ?? x.total_balance?.currency_code) === currency);
+  if (!b) return null;
+  return {
+    total: cents(b.total_balance?.value), available: cents(b.available_balance?.value), withheld: cents(b.withheld_balance?.value),
+    asked: raw.asked ?? null, asOf: raw.as_of_time ?? null, refreshed: raw.last_refresh_time ?? null,
+  };
+}
+
 // CSV with a header row. Required columns: date, amount. Optional: id, memo, ref.
 // `amount` is the signed change to the PayPal clearing account (money in is positive).
 export function parseCsv(text) {

@@ -3,7 +3,7 @@
 import { match, tieOut, hints } from './match.mjs';
 import { check, CLEARING, CHART } from './check.mjs';
 
-export function openClose({ paypal, ledger, period, currency = 'USD', chart = CHART }) {
+export function openClose({ paypal, ledger, period, currency = 'USD', chart = CHART, balances = null }) {
   const inPeriod = (d) => !period || d.startsWith(period);
   const base = paypal.filter((t) => t.currency === currency && inPeriod(t.date));
   const foreign = paypal.filter((t) => t.currency !== currency && inPeriod(t.date));
@@ -12,6 +12,7 @@ export function openClose({ paypal, ledger, period, currency = 'USD', chart = CH
   const found = hints(exceptions, new Map(base.map((t) => [t.id, t])), new Map(books.map((l) => [l.id, l])));
   return {
     period, currency, chart,
+    balances, // PayPal's own opening and closing balance, when read: { opening, closing } from balanceRow
     paypal: base, foreign, ledger: books, matches,
     outside: ledger.length - books.length, // book lines dated outside the period, left out of the close
     exceptions: exceptions.map((e) => ({ ...e, hints: found.get(e.id) ?? [], status: 'open', fix: null, check: null })),
@@ -94,5 +95,9 @@ export function summary(close) {
   const adjustments = journal(close).reduce((s, f) => s + f.lines.reduce((a, l) => a + (l.account === CLEARING ? (l.debit ?? 0) - (l.credit ?? 0) : 0), 0), 0);
   const t = tieOut(close.paypal, close.ledger, adjustments);
   const count = (s) => close.exceptions.filter((e) => e.status === s).length;
-  return { ...t, adjustments, matched: close.matches.length, open: count('open'), approved: count('approved'), covered: count('covered'), exceptions: close.exceptions.length };
+  // PayPal's balance must move by exactly the net of the transactions read: a second, independent
+  // check that Transaction Search returned the whole period.
+  const b = close.balances;
+  const balance = b?.opening && b?.closing ? { opening: b.opening, closing: b.closing, moved: b.closing.total - b.opening.total, activity: t.paypalNet, gap: b.closing.total - b.opening.total - t.paypalNet } : null;
+  return { ...t, balance, adjustments, matched: close.matches.length, open: count('open'), approved: count('approved'), covered: count('covered'), exceptions: close.exceptions.length };
 }

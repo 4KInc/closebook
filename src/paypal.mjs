@@ -105,6 +105,23 @@ export async function fetchMonth(period, env = process.env, opts = {}) {
   return fetchWindow((q) => ctl.searchTransactions(q), startDate, endDate, opts);
 }
 
+// PayPal's own balance at the start and the end of the period (`GET /v1/reporting/balances`,
+// through the same SDK controller). The close checks that the balance moved by exactly the net of
+// the transactions Transaction Search returned, so a missing or extra transaction shows up even
+// when the books happen to agree with it. PayPal answers "as of" its last refresh, which can be
+// earlier than asked; the answer keeps both times so the screen can say so.
+export async function fetchBalances(period, env = process.env, opts = {}) {
+  const ctl = opts.controller ?? controller(env);
+  const { startDate, endDate } = monthRange(period);
+  const one = async (asOfTime) => {
+    const res = await withRetry(() => ctl.searchBalances({ asOfTime, currencyCode: opts.currency ?? 'USD' }), opts);
+    try { return typeof res.body === 'string' ? JSON.parse(res.body) : res.result ?? res.body; }
+    catch { throw new PayPalError('PayPal sent a balance that is not JSON.'); }
+  };
+  const [opening, closing] = await Promise.all([one(startDate), one(endDate)]);
+  return { opening: { ...opening, asked: startDate }, closing: { ...closing, asked: endDate } };
+}
+
 // A cheap check at startup: one transaction from the last day. Reports whether the credentials
 // work and whether the app has the Transaction search permission, without failing the server.
 export async function probe(env = process.env, opts = {}) {

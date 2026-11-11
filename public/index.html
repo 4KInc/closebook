@@ -56,9 +56,15 @@
         <p>A ceramics shop's October, with planted mistakes. No setup.</p>
         <button class="btn btn-ink" id="openDemo">Open the demo month</button>
       </div>
-      <div class="door">
-        <h2>Your PayPal sandbox</h2>
-        <p>A month from PayPal, and your books as CSV. <a href="/api/demo-ledger.csv">Example CSV</a></p>
+      <div class="door door-live">
+        <h2>A live PayPal month</h2>
+        <p>closebook's own sandbox account, November 2026, read live through Transaction Search and the Balances API, against <a href="/api/sandbox-books.csv">a four-line books file</a>. No setup.</p>
+        <button class="btn btn-ink" id="openSandbox">Close November from PayPal</button>
+        <p class="hint" id="sandboxHint" role="status"></p>
+      </div>
+      <div class="door door-own">
+        <h2>Your own month</h2>
+        <p>Any month from this server's PayPal account, and your books as CSV: <code>date, amount</code>, optionally <code>id, memo, ref</code>; dates as YYYY-MM-DD. <a href="/api/demo-ledger.csv">Example CSV</a></p>
         <div class="fields">
           <label for="period">Month<input type="month" id="period"></label>
           <label for="csv">Books (CSV)<input type="file" id="csv" accept=".csv,text/csv"></label>
@@ -83,6 +89,7 @@
       <div class="ticks" id="ticks" aria-hidden="true"></div>
       <div class="counts" id="counts"></div>
     </div>
+    <p class="balcheck" id="balcheck" hidden></p>
   </section>
 
   <section class="actions">

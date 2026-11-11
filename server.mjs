@@ -12,10 +12,10 @@ import { randomUUID } from 'node:crypto';
 import { extname, join, sep, normalize as normPath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { demoMonth } from './src/demo.mjs';
-import { paypalRows, ledgerRows } from './src/normalize.mjs';
+import { paypalRows, ledgerRows, balanceRow } from './src/normalize.mjs';
 import { openClose, ruleFix, propose, approve, reject, summary, journal } from './src/close.mjs';
 import { proposeWithClaude, MODEL } from './src/claude.mjs';
-import { fetchMonth, paypalConfigured, probe, PayPalError } from './src/paypal.mjs';
+import { fetchMonth, fetchBalances, paypalConfigured, probe, PayPalError } from './src/paypal.mjs';
 import { CATEGORIES } from './src/codes.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
@@ -126,6 +126,31 @@ async function staticFile(req, res) {
   } catch { json(res, 404, { error: 'not found' }); }
 }
 
+const SANDBOX = { period: '2026-11', file: join(HERE, 'samples', 'sandbox-2026-11-books.csv') };
+
+async function closeFromPayPal(s, res, period, ledgerCsv, label) {
+  if (!paypalConfigured()) return json(res, 400, { error: 'PayPal credentials are not configured on this server' });
+  if (!/^\d{4}-\d{2}$/.test(period ?? '')) return json(res, 400, { error: 'pick a month first' });
+  let ledger;
+  try { ledger = ledgerRows(ledgerCsv ?? ''); } catch (e) { return json(res, 400, { error: `The books CSV could not be read: ${e.message}` }); }
+  if (ledger.length && !ledger.some((l) => l.date.startsWith(period))) return json(res, 400, { error: `None of the ${ledger.length} book lines is dated in ${period}. Check the month, or the dates in the CSV.` });
+  let details, balances = null;
+  try {
+    // The balance read is a second check, not a requirement: if it fails, the close still opens.
+    const [d, b] = await Promise.all([fetchMonth(period), fetchBalances(period).catch((e) => { console.warn(`[paypal] balances ${period}: ${e.message}`); return null; })]);
+    details = d;
+    if (b) balances = { opening: balanceRow(b.opening), closing: balanceRow(b.closing) };
+  } catch (e) {
+    console.error(`[paypal] ${period}: ${e.message}`);
+    if (e instanceof PayPalError) { if (e.status === 403 || e.status === 401) paypalStatus = { ok: false, status: e.status, message: e.message }; return json(res, 502, { error: e.message }); }
+    return json(res, 400, { error: e.message });
+  }
+  if (!details.length) return json(res, 404, { error: `PayPal returned no balance-affecting transactions for ${period}. New transactions can take up to three hours to appear in Transaction Search.` });
+  s.close = openClose({ paypal: paypalRows(details), ledger, period, balances });
+  s.source = { kind: 'paypal', label };
+  return json(res, 200, view(s));
+}
+
 async function route(req, res) {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
@@ -137,29 +162,25 @@ async function route(req, res) {
 
   if (req.method === 'POST' && p === '/api/close/demo') {
     const d = demoMonth();
-    s.close = openClose({ paypal: paypalRows(d.transaction_details), ledger: ledgerRows(d.ledgerCsv), period: d.period });
+    s.close = openClose({ paypal: paypalRows(d.transaction_details), ledger: ledgerRows(d.ledgerCsv), period: d.period, balances: { opening: balanceRow(d.balances.opening), closing: balanceRow(d.balances.closing) } });
     s.source = { kind: 'demo', label: `Demo month: ${d.shop}, ${d.period}` };
     return json(res, 200, view(s));
   }
 
   if (req.method === 'POST' && p === '/api/close/paypal') {
     const { period, ledgerCsv } = await body(req);
-    if (!paypalConfigured()) return json(res, 400, { error: 'PayPal credentials are not configured on this server' });
-    let ledger;
-    try { ledger = ledgerRows(ledgerCsv ?? ''); } catch (e) { return json(res, 400, { error: `The books CSV could not be read: ${e.message}` }); }
-    if (!/^\d{4}-\d{2}$/.test(period ?? '')) return json(res, 400, { error: 'pick a month first' });
-    if (ledger.length && !ledger.some((l) => l.date.startsWith(period))) return json(res, 400, { error: `None of the ${ledger.length} book lines is dated in ${period}. Check the month, or the dates in the CSV.` });
-    let details;
-    try { details = await fetchMonth(period); }
-    catch (e) {
-      console.error(`[paypal] ${period}: ${e.message}`);
-      if (e instanceof PayPalError) { if (e.status === 403 || e.status === 401) paypalStatus = { ok: false, status: e.status, message: e.message }; return json(res, 502, { error: e.message }); }
-      return json(res, 400, { error: e.message });
-    }
-    if (!details.length) return json(res, 404, { error: `PayPal returned no balance-affecting transactions for ${period}. New transactions can take up to three hours to appear in Transaction Search.` });
-    s.close = openClose({ paypal: paypalRows(details), ledger, period });
-    s.source = { kind: 'paypal', label: `PayPal sandbox, ${period}` };
-    return json(res, 200, view(s));
+    return closeFromPayPal(s, res, period, ledgerCsv, `PayPal sandbox, ${period}`);
+  }
+
+  // One click for judges: closebook's own sandbox account, read live through Transaction Search,
+  // against the books file committed in samples/.
+  if (req.method === 'POST' && p === '/api/close/sandbox') {
+    return closeFromPayPal(s, res, SANDBOX.period, await readFile(SANDBOX.file, 'utf8'), `closebook's PayPal sandbox, read live: ${SANDBOX.period}`);
+  }
+
+  if (req.method === 'GET' && p === '/api/sandbox-books.csv') {
+    res.writeHead(200, { 'content-type': 'text/csv', 'content-disposition': `attachment; filename="sandbox-${SANDBOX.period}-books.csv"` });
+    return res.end(await readFile(SANDBOX.file, 'utf8'));
   }
 
   if (req.method === 'GET' && p === '/api/demo-ledger.csv') {

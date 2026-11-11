@@ -61,6 +61,8 @@ function render() {
     const ps = state?.config?.paypalStatus;
     $('paypalHint').textContent = !state?.config?.paypal ? 'This server has no PayPal credentials configured, so only the demo month is available here.' : ps && !ps.ok && ps.status ? ps.message : '';
     $('openPaypal').disabled = !state?.config?.paypal;
+    $('openSandbox').disabled = !state?.config?.paypal;
+    if (!state?.config?.paypal) $('sandboxHint').textContent = 'This server has no PayPal credentials, so the live month is not available here.';
     return;
   }
   $('start').hidden = true; $('app').hidden = false;
@@ -74,6 +76,13 @@ function render() {
   const kindOf = (e) => (e.status !== 'open' ? 'done' : e.pending ? 'pending' : e.fix ? (e.check.ok ? 'ready' : 'fail') : 'open');
   const order = { done: 0, ready: 1, fail: 2, pending: 3, open: 4 };
   const kinds = state.exceptions.map(kindOf).sort((a, b) => order[a] - order[b]);
+  // PayPal's balance moved by exactly the net of the transactions read, or it did not.
+  const b = s.balance;
+  $('balcheck').hidden = !b;
+  if (b) {
+    const day = (x) => esc((x.asOf ?? x.asked ?? '').replace('T', ' ').slice(0, 16));
+    $('balcheck').innerHTML = `<span>PayPal's own balance (Balances API): <b>${fmt(b.opening.total)}</b> at ${day(b.opening)} → <b>${fmt(b.closing.total)}</b> at ${day(b.closing)} UTC, moved <b>${fmt(b.moved)}</b>; Transaction Search net <b>${fmt(b.activity)}</b>.</span>${b.gap === 0 ? '<span class="ok">✓ every transaction accounted for</span>' : `<span class="off">✗ ${fmt(b.gap)} not in the transactions read</span>`}`;
+  }
   $('ticks').innerHTML = kinds.map((k) => `<span class="tick ${k}"></span>`).join('');
   const n = (k) => kinds.filter((x) => x === k).length;
   $('counts').innerHTML = `<span><b>${s.matched}</b> matched by rule</span><span class="k-done"><i></i><b>${n('done')}</b> settled</span><span class="k-ready"><i></i><b>${n('ready')}</b> ready to approve</span>${n('fail') ? `<span class="k-fail"><i></i><b>${n('fail')}</b> failing checks</span>` : ''}<span><i></i><b>${n('open') + n('pending')}</b> open</span>`;
@@ -327,6 +336,13 @@ $('tabs').addEventListener('click', (ev) => {
 const openView = () => { if (location.hash === '#close') render(); else location.hash = 'close'; };
 $('openDemo').addEventListener('click', async () => { state = await api('/api/close/demo', { post: true, body: {} }); selected = null; grid?.destroy(); grid = null; openView(); });
 $('resumeBtn').addEventListener('click', openView);
+$('openSandbox').addEventListener('click', async () => {
+  $('openSandbox').disabled = true;
+  $('sandboxHint').textContent = 'Reading PayPal Transaction Search and the Balances API…';
+  try { state = await api('/api/close/sandbox', { post: true, body: {} }); selected = null; grid?.destroy(); grid = null; $('sandboxHint').textContent = ''; openView(); }
+  catch (err) { $('sandboxHint').textContent = err.message; }
+  $('openSandbox').disabled = false;
+});
 $('openPaypal').addEventListener('click', async () => {
   const file = $('csv').files[0];
   if (!$('period').value || !file) { $('paypalHint').textContent = 'Pick a month and a CSV first.'; return; }

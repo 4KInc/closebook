@@ -2,7 +2,8 @@
 // splitting and the error messages a person sees. No network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchMonth, probe, withRetry, PayPalError } from '../src/paypal.mjs';
+import { fetchMonth, fetchBalances, probe, withRetry, PayPalError } from '../src/paypal.mjs';
+import { balanceRow } from '../src/normalize.mjs';
 
 const ENV = { PAYPAL_CLIENT_ID: 'id', PAYPAL_CLIENT_SECRET: 'secret' };
 const apiError = (statusCode, body = '', headers = {}) => Object.assign(new Error(`HTTP ${statusCode}`), { statusCode, body, headers });
@@ -71,4 +72,14 @@ test('the startup check reports a missing permission without throwing', async ()
   assert.equal(r.status, 403);
   assert.match(r.message, /Transaction search/);
   assert.equal((await probe({}, quiet)).ok, false);
+});
+
+test('balances are read at the start and end of the month, in cents, with the time PayPal answered for', async () => {
+  const asked = [];
+  const controller = { searchBalances: async (q) => { asked.push(q); const v = q.asOfTime.startsWith('2026-10-01') ? '5000.00' : '5038.82'; return { body: JSON.stringify({ balances: [{ currency: 'USD', total_balance: { currency_code: 'USD', value: v }, available_balance: { currency_code: 'USD', value: v }, withheld_balance: { currency_code: 'USD', value: '0.00' } }], as_of_time: q.asOfTime, last_refresh_time: q.asOfTime }) }; } };
+  const b = await fetchBalances('2026-10', ENV, { controller, ...quiet });
+  assert.deepEqual(asked.map((q) => [q.asOfTime, q.currencyCode]), [['2026-10-01T00:00:00Z', 'USD'], ['2026-10-31T23:59:59Z', 'USD']]);
+  assert.equal(balanceRow(b.opening).total, 500000);
+  assert.equal(balanceRow(b.closing).total, 503882);
+  assert.equal(balanceRow(b.closing, 'EUR'), null);
 });

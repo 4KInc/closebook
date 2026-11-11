@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cents, fmt } from '../src/money.mjs';
-import { paypalRows, ledgerRows, parseCsv } from '../src/normalize.mjs';
+import { paypalRows, ledgerRows, parseCsv, balanceRow } from '../src/normalize.mjs';
 import { match } from '../src/match.mjs';
 import { check, CLEARING } from '../src/check.mjs';
 import { openClose, stateOf, ruleFix, propose, approve, reject, summary, journal } from '../src/close.mjs';
@@ -204,4 +204,17 @@ test('correct fixes for every planted mistake bring the difference to zero', () 
   const s = summary(close);
   assert.equal(s.open, 0);
   assert.equal(s.difference, 0);
+});
+
+test("PayPal's balance must move by exactly the net of the transactions read", () => {
+  const d = demoMonth();
+  const balances = { opening: balanceRow(d.balances.opening), closing: balanceRow(d.balances.closing) };
+  const full = openClose({ paypal: paypalRows(d.transaction_details), ledger: [], period: d.period, balances });
+  assert.equal(summary(full).balance.gap, 0);
+  // Drop one transaction, as if Transaction Search had missed it: the balance check shows exactly it.
+  const missing = paypalRows(d.transaction_details).slice(1);
+  const lost = paypalRows(d.transaction_details)[0];
+  const part = openClose({ paypal: missing, ledger: [], period: d.period, balances });
+  assert.equal(summary(part).balance.gap, lost.net);
+  assert.equal(summary(openClose({ paypal: missing, ledger: [], period: d.period })).balance, null);
 });
