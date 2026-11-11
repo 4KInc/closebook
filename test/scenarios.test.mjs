@@ -121,7 +121,9 @@ test('the dispute behind a chargeback reaches the AI\'s prompt, from the Dispute
   const { prompt } = await import('../src/claude.mjs');
   const d = demoMonth();
   const paypal = rows(d.transaction_details);
-  assert.deepEqual([...new Set(disputedIds(paypal))], Object.keys(d.disputes));
+  const ids = disputedIds(paypal);
+  assert.equal(ids[0], Object.keys(d.disputes)[0], 'the sale behind the chargeback is looked up first');
+  assert.ok(ids.length > 1 && new Set(ids).size === ids.length, 'then the other sales, once each');
   const close = open({ paypal, ledger: books(d.ledgerCsv), period: d.period, disputes: disputeRows(d.disputes) });
   const cb = close.exceptions.find((e) => e.paypal.length && paypal.find((t) => t.id === e.paypal[0]).code === 'T1201');
   assert.match(prompt(close, cb), /PayPal dispute PP-D-48213: reason MERCHANDISE_OR_SERVICE_NOT_RECEIVED, status RESOLVED, stage CHARGEBACK, outcome RESOLVED_BUYER_FAVOUR/);

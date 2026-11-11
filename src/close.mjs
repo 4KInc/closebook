@@ -140,8 +140,11 @@ export function summary(close) {
   return { ...t, balance, adjustments, matched: close.matches.length, open: count('open'), approved: count('approved'), covered: count('covered'), exceptions: close.exceptions.length };
 }
 
-// The transactions whose disputes are worth reading: the originals that holds and chargebacks
-// refer to.
+// The transactions whose disputes are worth reading: first the originals that holds and
+// chargebacks refer to, then the month's sales themselves, since a buyer's dispute can be open
+// before PayPal holds any money. fetchDisputes reads at most 25 per close.
 export function disputedIds(paypal) {
-  return paypal.filter((t) => (t.kind === 'hold' || t.kind === 'reversal') && t.ref).map((t) => t.ref);
+  const behindHolds = paypal.filter((t) => (t.kind === 'hold' || t.kind === 'reversal') && t.ref).map((t) => t.ref);
+  const sales = paypal.filter((t) => t.kind === 'payment').map((t) => t.id);
+  return [...new Set([...behindHolds, ...sales])];
 }
