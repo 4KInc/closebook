@@ -1,0 +1,1055 @@
+{
+  "started": "2026-11-11T15:42:18.773Z",
+  "runs": 5,
+  "server": "https://closebook-uju5.onrender.com",
+  "key": {
+    "X-3A1F43AADDEMO0035": {
+      "accept": [
+        "refund_not_booked"
+      ],
+      "pair": null,
+      "account": "4900",
+      "what": "T1107 Refund JC-1043"
+    },
+    "X-3A1F13556DEMO0010": {
+      "accept": [
+        "sale_not_booked"
+      ],
+      "pair": null,
+      "account": "4000",
+      "what": "T0006 1 x Bud vase"
+    },
+    "X-3A1F1D001DEMO0015": {
+      "accept": [
+        "fee_not_booked"
+      ],
+      "pair": [
+        "L014",
+        "L015"
+      ],
+      "account": "6100",
+      "what": "T0006 1 x Pour-over set"
+    },
+    "X-3A1F20DDFDEMO0017": {
+      "accept": [
+        "fee_not_booked"
+      ],
+      "pair": [
+        "L017"
+      ],
+      "account": "6100",
+      "what": "T0006 1 x Dinner plate set"
+    },
+    "X-3A1F24BBDDEMO0019": {
+      "accept": [
+        "fee_not_booked"
+      ],
+      "pair": [
+        "L019"
+      ],
+      "account": "6100",
+      "what": "T0006 1 x Dinner plate set"
+    },
+    "X-3A1F4D558DEMO0040": {
+      "accept": [
+        "payout_not_booked"
+      ],
+      "pair": null,
+      "account": "5100",
+      "what": "T0001 Kiln service - October"
+    },
+    "X-3A1F4788BDEMO0037": {
+      "accept": [
+        "hold_not_booked"
+      ],
+      "pair": null,
+      "account": "1210",
+      "what": "T1110 Hold for dispute investigation"
+    },
+    "X-3A1F4F447DEMO0041": {
+      "accept": [
+        "amount_keyed_wrong"
+      ],
+      "pair": null,
+      "account": "1000",
+      "what": "T0400 Withdrawal to bank"
+    },
+    "X-3A1F4977ADEMO0038": {
+      "accept": [
+        "hold_not_booked"
+      ],
+      "pair": null,
+      "account": "1210",
+      "what": "T1111 Cancellation of hold for dispute resolution"
+    },
+    "X-3A1F4B669DEMO0039": {
+      "accept": [
+        "reversal_not_booked"
+      ],
+      "pair": null,
+      "account": "6150",
+      "what": "T1201 Chargeback"
+    },
+    "X-L037": {
+      "accept": [
+        "not_in_paypal"
+      ],
+      "pair": null,
+      "account": null,
+      "what": "book L037: Craft fair sale - cash"
+    },
+    "X-L014": {
+      "accept": [
+        "fee_not_booked",
+        "duplicate_in_books"
+      ],
+      "pair": null,
+      "account": "6100",
+      "what": "book L014: 1 x Pour-over set - Ava Brooks"
+    },
+    "X-L015": {
+      "accept": [
+        "duplicate_in_books",
+        "fee_not_booked"
+      ],
+      "pair": null,
+      "account": null,
+      "what": "book L015: 1 x Pour-over set - Ava Brooks"
+    },
+    "X-L017": {
+      "accept": [
+        "fee_not_booked"
+      ],
+      "pair": [
+        "3A1F20DDFDEMO0017"
+      ],
+      "account": "6100",
+      "what": "book L017: 1 x Dinner plate set - Zoe Rivera"
+    },
+    "X-L019": {
+      "accept": [
+        "fee_not_booked"
+      ],
+      "pair": [
+        "3A1F24BBDDEMO0019"
+      ],
+      "account": "6100",
+      "what": "book L019: 1 x Dinner plate set - Ruby Shah"
+    },
+    "X-L036": {
+      "accept": [
+        "amount_keyed_wrong"
+      ],
+      "pair": null,
+      "account": "1000",
+      "what": "book L036: Transfer to Chase checking"
+    }
+  },
+  "results": [
+    {
+      "model": "claude-opus-5-5",
+      "results": [
+        {
+          "id": "X-3A1F43AADDEMO0035",
+          "category": "refund_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 4900 9600, Cr 6100 326, Cr 1010 9274"
+        },
+        {
+          "id": "X-3A1F13556DEMO0010",
+          "category": "sale_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1010 3517, Dr 6100 178, Cr 4000 3695"
+        },
+        {
+          "id": "X-3A1F1D001DEMO0015",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 352, Cr 1010 352"
+        },
+        {
+          "id": "X-3A1F20DDFDEMO0017",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-3A1F24BBDDEMO0019",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-3A1F4D558DEMO0040",
+          "category": "payout_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 5100 32500, Dr 6100 50, Cr 1010 32550"
+        },
+        {
+          "id": "X-3A1F4788BDEMO0037",
+          "category": "hold_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1210 16495, Cr 1010 16495, Dr 1010 16495, Cr 1210 16495"
+        },
+        {
+          "id": "X-3A1F4F447DEMO0041",
+          "category": "amount_keyed_wrong",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 9000, Cr 1010 9000"
+        },
+        {
+          "id": "X-3A1F4977ADEMO0038",
+          "category": "hold_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1210 16495, Cr 1010 16495, Dr 1010 16495, Cr 1210 16495"
+        },
+        {
+          "id": "X-3A1F4B669DEMO0039",
+          "category": "reversal_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6150 16495, Dr 6100 2000, Cr 1010 18495"
+        },
+        {
+          "id": "X-L037",
+          "category": "not_in_paypal",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 3999 6500, Cr 1010 6500"
+        },
+        {
+          "id": "X-L014",
+          "category": "duplicate_in_books",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": false,
+          "failures": [],
+          "accounts": "Dr 4000 8695, Cr 1010 8695"
+        },
+        {
+          "id": "X-L015",
+          "category": "duplicate_in_books",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 4000 8695, Cr 1010 8695"
+        },
+        {
+          "id": "X-L017",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-L019",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-L036",
+          "category": "amount_keyed_wrong",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 9000, Cr 1010 9000"
+        }
+      ]
+    },
+    {
+      "model": "claude-opus-5-5",
+      "results": [
+        {
+          "id": "X-3A1F43AADDEMO0035",
+          "category": "refund_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 4900 9600, Cr 6100 326, Cr 1010 9274"
+        },
+        {
+          "id": "X-3A1F13556DEMO0010",
+          "category": "sale_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1010 3517, Dr 6100 178, Cr 4000 3695"
+        },
+        {
+          "id": "X-3A1F1D001DEMO0015",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 352, Cr 1010 352"
+        },
+        {
+          "id": "X-3A1F20DDFDEMO0017",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-3A1F24BBDDEMO0019",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-3A1F4D558DEMO0040",
+          "category": "payout_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 5100 32500, Dr 6100 50, Cr 1010 32550"
+        },
+        {
+          "id": "X-3A1F4788BDEMO0037",
+          "category": "hold_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1210 16495, Cr 1010 16495, Dr 1010 16495, Cr 1210 16495"
+        },
+        {
+          "id": "X-3A1F4F447DEMO0041",
+          "category": "amount_keyed_wrong",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 9000, Cr 1010 9000"
+        },
+        {
+          "id": "X-3A1F4977ADEMO0038",
+          "category": "hold_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1210 16495, Cr 1010 16495, Dr 1010 16495, Cr 1210 16495"
+        },
+        {
+          "id": "X-3A1F4B669DEMO0039",
+          "category": "reversal_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6150 16495, Dr 6100 2000, Cr 1010 18495"
+        },
+        {
+          "id": "X-L037",
+          "category": "not_in_paypal",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 6500, Cr 1010 6500"
+        },
+        {
+          "id": "X-L014",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 352, Cr 1010 352"
+        },
+        {
+          "id": "X-L015",
+          "category": "duplicate_in_books",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 4000 8695, Cr 1010 8695"
+        },
+        {
+          "id": "X-L017",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-L019",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-L036",
+          "category": "amount_keyed_wrong",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 9000, Cr 1010 9000"
+        }
+      ]
+    },
+    {
+      "model": "claude-opus-5-5",
+      "results": [
+        {
+          "id": "X-3A1F43AADDEMO0035",
+          "category": "refund_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 4900 9600, Cr 6100 326, Cr 1010 9274"
+        },
+        {
+          "id": "X-3A1F13556DEMO0010",
+          "category": "sale_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1010 3517, Dr 6100 178, Cr 4000 3695"
+        },
+        {
+          "id": "X-3A1F1D001DEMO0015",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 352, Cr 1010 352"
+        },
+        {
+          "id": "X-3A1F20DDFDEMO0017",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-3A1F24BBDDEMO0019",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-3A1F4D558DEMO0040",
+          "category": "payout_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 5100 32500, Dr 6100 50, Cr 1010 32550"
+        },
+        {
+          "id": "X-3A1F4788BDEMO0037",
+          "category": "hold_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1210 16495, Cr 1010 16495, Dr 1010 16495, Cr 1210 16495"
+        },
+        {
+          "id": "X-3A1F4F447DEMO0041",
+          "category": "amount_keyed_wrong",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 9000, Cr 1010 9000"
+        },
+        {
+          "id": "X-3A1F4977ADEMO0038",
+          "category": "hold_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1210 16495, Cr 1010 16495, Dr 1010 16495, Cr 1210 16495"
+        },
+        {
+          "id": "X-3A1F4B669DEMO0039",
+          "category": "reversal_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6150 16495, Dr 6100 2000, Cr 1010 18495"
+        },
+        {
+          "id": "X-L037",
+          "category": "not_in_paypal",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 3999 6500, Cr 1010 6500"
+        },
+        {
+          "id": "X-L014",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 352, Cr 1010 352"
+        },
+        {
+          "id": "X-L015",
+          "category": "duplicate_in_books",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 4000 8695, Cr 1010 8695"
+        },
+        {
+          "id": "X-L017",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-L019",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-L036",
+          "category": "amount_keyed_wrong",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 9000, Cr 1010 9000"
+        }
+      ]
+    },
+    {
+      "model": "claude-opus-5-5",
+      "results": [
+        {
+          "id": "X-3A1F43AADDEMO0035",
+          "category": "refund_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 4900 9600, Cr 6100 326, Cr 1010 9274"
+        },
+        {
+          "id": "X-3A1F13556DEMO0010",
+          "category": "sale_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1010 3517, Dr 6100 178, Cr 4000 3695"
+        },
+        {
+          "id": "X-3A1F1D001DEMO0015",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 352, Cr 1010 352"
+        },
+        {
+          "id": "X-3A1F20DDFDEMO0017",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-3A1F24BBDDEMO0019",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-3A1F4D558DEMO0040",
+          "category": "payout_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 5100 32500, Dr 6100 50, Cr 1010 32550"
+        },
+        {
+          "id": "X-3A1F4788BDEMO0037",
+          "category": "hold_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1210 16495, Cr 1010 16495, Dr 1010 16495, Cr 1210 16495"
+        },
+        {
+          "id": "X-3A1F4F447DEMO0041",
+          "category": "amount_keyed_wrong",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 9000, Cr 1010 9000"
+        },
+        {
+          "id": "X-3A1F4977ADEMO0038",
+          "category": "hold_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1210 16495, Cr 1010 16495, Dr 1010 16495, Cr 1210 16495"
+        },
+        {
+          "id": "X-3A1F4B669DEMO0039",
+          "category": "reversal_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6150 16495, Dr 6100 2000, Cr 1010 18495"
+        },
+        {
+          "id": "X-L037",
+          "category": "not_in_paypal",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 3999 6500, Cr 1010 6500"
+        },
+        {
+          "id": "X-L014",
+          "category": "duplicate_in_books",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 4000 8695, Cr 1010 8695"
+        },
+        {
+          "id": "X-L015",
+          "category": "duplicate_in_books",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 4000 8695, Cr 1010 8695"
+        },
+        {
+          "id": "X-L017",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-L019",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-L036",
+          "category": "amount_keyed_wrong",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 9000, Cr 1010 9000"
+        }
+      ]
+    },
+    {
+      "model": "claude-opus-5-5",
+      "results": [
+        {
+          "id": "X-3A1F43AADDEMO0035",
+          "category": "refund_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 4900 9600, Cr 6100 326, Cr 1010 9274"
+        },
+        {
+          "id": "X-3A1F13556DEMO0010",
+          "category": "sale_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1010 3517, Dr 6100 178, Cr 4000 3695"
+        },
+        {
+          "id": "X-3A1F1D001DEMO0015",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 352, Cr 1010 352"
+        },
+        {
+          "id": "X-3A1F20DDFDEMO0017",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-3A1F24BBDDEMO0019",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-3A1F4D558DEMO0040",
+          "category": "payout_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 5100 32500, Dr 6100 50, Cr 1010 32550"
+        },
+        {
+          "id": "X-3A1F4788BDEMO0037",
+          "category": "hold_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1210 16495, Cr 1010 16495, Dr 1010 16495, Cr 1210 16495"
+        },
+        {
+          "id": "X-3A1F4F447DEMO0041",
+          "category": "amount_keyed_wrong",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 9000, Cr 1010 9000"
+        },
+        {
+          "id": "X-3A1F4977ADEMO0038",
+          "category": "hold_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1010 16495, Cr 1210 16495"
+        },
+        {
+          "id": "X-3A1F4B669DEMO0039",
+          "category": "reversal_not_booked",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6150 16495, Dr 6100 2000, Cr 1010 18495"
+        },
+        {
+          "id": "X-L037",
+          "category": "not_in_paypal",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 6500, Cr 1010 6500"
+        },
+        {
+          "id": "X-L014",
+          "category": "duplicate_in_books",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": false,
+          "failures": [],
+          "accounts": "Dr 4000 8695, Cr 1010 8695"
+        },
+        {
+          "id": "X-L015",
+          "category": "duplicate_in_books",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": null,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 4000 8695, Cr 1010 8695"
+        },
+        {
+          "id": "X-L017",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-L019",
+          "category": "fee_not_booked",
+          "categoryRight": true,
+          "pairRight": true,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 6100 583, Cr 1010 583"
+        },
+        {
+          "id": "X-L036",
+          "category": "amount_keyed_wrong",
+          "categoryRight": true,
+          "pairRight": null,
+          "accountRight": true,
+          "checksPass": true,
+          "firstTry": true,
+          "failures": [],
+          "accounts": "Dr 1000 9000, Cr 1010 9000"
+        }
+      ]
+    }
+  ]
+}

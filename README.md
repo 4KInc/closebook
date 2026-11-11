@@ -21,7 +21,8 @@ approve it**, and the person can correct it in place.
 >    evidence, the entry, Claude's reasoning and the nine checks. **Edit any cell of the entry**
 >    and watch the checks re-run.
 > 3. What to look for: the difference reaching $0.00, an entry you break by one cent failing at
->    once, and the [accuracy measurement](#how-accurate-is-the-ai) against the demo's answer key.
+>    once, and the [accuracy measurement](#how-accurate-is-the-ai): 80 of 80 proposals matched the
+>    demo's answer key and passed every check.
 
 **What happens to each line of the month:**
 
@@ -134,11 +135,20 @@ account a bookkeeper would use, and, for two sales of the same amount, whether C
 with the right book line (only the buyer's name tells them apart).
 
 <!-- eval:start -->
-A first run (1 run, 16 proposals, `claude-opus-5-5`, 11 November 2026, against the version
-deployed before the balance and dispute checks): **16/16 categories match the answer key, 16/16
-entries pass every check, 15/16 on the first try**, 14/14 use the expected account, and 5/5
-same-amount sales are paired with the right book line. A five-run measurement of the current
-version replaces this.
+Measured on the live deployment on 11 November 2026: 5 runs × 16 exceptions, `claude-opus-5-5`
+([full table](eval/latest.md), [raw results](eval/results-2026-11-11T154218.json)).
+
+| | Result |
+|---|---|
+| Category matches the answer key | **80/80** |
+| Entry passed every check | **80/80** |
+| Passed on the first try | 78/80 (both others: one of the two identical book lines, corrected on the one retry) |
+| Used the account a bookkeeper would (refund 4900, payout 5100, hold 1210, chargeback 6150, transfer 1000, sale 4000, fee 6100) | 67/67 |
+| Paired a same-amount sale with the right book line, by the buyer's name | 25/25 |
+
+What this does and does not show: the demo month is small and its mistakes were planted by us, so
+this is a measurement of closebook on a known month, not a general accuracy figure. For the
+duplicated pair, either identical line may be called the duplicate, and the key accepts either.
 <!-- eval:end -->
 
 The checks are what make that number safe to use: an entry that is wrong in its arithmetic cannot
