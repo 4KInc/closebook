@@ -19,6 +19,7 @@ import { memoData, memoHtml, checkNarrative } from './src/memo.mjs';
 import { fetchMonth, fetchBalances, fetchDisputes, paypalConfigured, probe, PayPalError } from './src/paypal.mjs';
 import { CATEGORIES } from './src/codes.mjs';
 import { loadRecording, recordedFix } from './src/recorded.mjs';
+import { booksRows } from './src/qbo.mjs';
 import { monthName } from './public/view.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
@@ -157,7 +158,7 @@ async function closeFromPayPal(s, res, period, ledgerCsv, label) {
   // The upload is checked before anything else, so a bad file gets a clear answer on any server.
   if (Buffer.byteLength(ledgerCsv ?? '', 'utf8') > MAX_CSV_BYTES) return json(res, 413, { error: 'Your file is larger than 2 MB. Upload one month of your PayPal account from your books.' });
   let ledger;
-  try { ledger = ledgerRows(ledgerCsv ?? ''); } catch (e) { return json(res, 400, { error: `We couldn't read your file: ${e.message}` }); }
+  try { ledger = booksRows(ledgerCsv ?? ''); } catch (e) { return json(res, 400, { error: `We couldn't read your file: ${e.message}` }); }
   if (!paypalConfigured()) return json(res, 400, { error: 'PayPal isn\'t connected here yet.' });
   if (!/^\d{4}-\d{2}$/.test(period ?? '')) return json(res, 400, { error: 'Pick a month first.' });
   if (ledger.length && !ledger.some((l) => l.date.startsWith(period))) return json(res, 400, { error: `None of the ${ledger.length} lines in your file is dated in ${monthName(period)}. Check the month you picked, or the dates in the file.` });

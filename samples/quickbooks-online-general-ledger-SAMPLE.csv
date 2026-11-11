@@ -1,0 +1,18 @@
+"SAMPLE: fabricated for closebook, in the shape of a QuickBooks Online export. Not real company data."
+"General Ledger"
+"November 1-30, 2026"
+
+,Date,Transaction Type,Num,Name,Memo/Description,Split,Amount,Balance
+PayPal Bank,,,,,,,,
+,11/02/2026,Expense,290211066S9097000,Operator,Operator reimbursement payout,Contractors,-90.00,-90.00
+,11/11/2026,Sales Receipt,9S634543FF897504U,Sandbox Buyer,Stoneware mug pair,Sales,48.00,-42.00
+,11/11/2026,Sales Receipt,5SY66963X4673292W,Sandbox Buyer,Serving platter,Sales,72.50,30.50
+,11/11/2026,Sales Receipt,00471269GD276451U,Sandbox Buyer,Dinner plate set,Sales,129.00,159.50
+Total for PayPal Bank,,,,,,,$159.50,
+Business Checking,,,,,,,,
+,11/03/2026,Deposit,,,Card reader payout,Sales,"1,240.00","1,240.00"
+,11/20/2026,Expense,1043,Kiln Supply Co,Glaze order,Supplies,-312.45,927.55
+Total for Business Checking,,,,,,,$927.55,
+
+,,,,,,,,
+"Accrual basis Wednesday, November 11, 2026 05:02 PM GMT-06:00"
