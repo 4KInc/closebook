@@ -1,9 +1,9 @@
 {
-  "recorded_at": "2026-11-11T16:49:35.817Z",
+  "recorded_at": "2026-11-11T20:19:30.556Z",
   "model": "claude-opus-5-5",
   "kind": "paypal",
   "period": "2026-11",
-  "how": "One live run through the deployed server (closebook-uju5.onrender.com): closebook sandbox account read live, the samples/ books, one live proposal per exception the rules leave open, unedited.",
+  "how": "scripts/record.mjs --sandbox 2026-11: closebook's sandbox account read live, one live proposal per exception.",
   "proposals": [
     {
       "exception": "X-60737920MG855045Y",
@@ -43,8 +43,8 @@
             "credit": 9025
           }
         ],
-        "memo": "Book PayPal hold 60737920MG855045Y and release 4UJ37824B6368654T, $90.25 each, 2026-11-02",
-        "explanation": "On 2026-11-02 PayPal placed a $90.25 hold (60737920MG855045Y) tied to the operator reimbursement payout, then released it the same day (4UJ37824B6368654T). Neither was booked. This entry records the hold to 1210 and its release back to PayPal clearing, so the clearing account nets to zero and both items are settled.",
+        "memo": "PayPal hold 60737920MG855045Y ($90.25) and same-day release 4UJ37824B6368654T, 2026-11-02",
+        "explanation": "On 2026-11-02 PayPal placed a $90.25 hold (60737920MG855045Y, T1503), and the same day released it (4UJ37824B6368654T, T1105). Neither was in the books. This entry records the hold to 1210 and its release back to PayPal clearing, so the two net to zero and both exceptions are closed. The related payout 290211066S9097000 is a separate exception and is not settled here.",
         "model": "claude-opus-5-5"
       }
     },
@@ -59,8 +59,8 @@
         "category": "hold_not_booked",
         "cites": {
           "paypal": [
-            "4UJ37824B6368654T",
-            "60737920MG855045Y"
+            "60737920MG855045Y",
+            "4UJ37824B6368654T"
           ],
           "ledger": []
         },
@@ -86,8 +86,8 @@
             "credit": 9025
           }
         ],
-        "memo": "Book PayPal hold 60737920MG855045Y (-90.25) and its release 4UJ37824B6368654T (+90.25) via 1210",
-        "explanation": "On 2026-11-02 PayPal placed a $90.25 hold (60737920MG855045Y, T1503) and released the same $90.25 the same day (4UJ37824B6368654T, T1105). Neither movement was in the books, so this entry records both through 1210 PayPal funds on hold; they net to zero in PayPal clearing, and this settles both exceptions. The buyer note about an agent reimbursement is only a description, and the entry rests on the event codes and amounts alone.",
+        "memo": "PayPal hold 60737920MG855045Y (-90.25) and its release 4UJ37824B6368654T (+90.25), 2026-11-02, via 1210",
+        "explanation": "On 2026-11-02 PayPal placed a $90.25 hold (60737920MG855045Y, T1503) and released the same $90.25 the same day (4UJ37824B6368654T, T1105, which refers to that hold), and neither was in the books. This entry records the hold into 1210 and its release back out, so both exceptions are settled with no net change to PayPal clearing. The release carries a note about an 'agent operator reimbursement' verdict; it does not change the accounting, and the entry rests only on the amounts and event codes.",
         "model": "claude-opus-5-5"
       }
     },
@@ -99,38 +99,34 @@
       "ledger": [],
       "attempts": 1,
       "fix": {
-        "category": "hold_not_booked",
+        "category": "payout_not_booked",
         "cites": {
           "paypal": [
             "07857228PM049262D",
-            "73X414473L606360P"
+            "73X414473L606360P",
+            "1X751412W2205952C"
           ],
           "ledger": []
         },
         "lines": [
           {
-            "account": "1210",
-            "debit": 9025,
+            "account": "5100",
+            "debit": 9000,
+            "credit": 0
+          },
+          {
+            "account": "6100",
+            "debit": 25,
             "credit": 0
           },
           {
             "account": "1010",
-            "debit": 0,
-            "credit": 9025
-          },
-          {
-            "account": "1010",
-            "debit": 9025,
-            "credit": 0
-          },
-          {
-            "account": "1210",
             "debit": 0,
             "credit": 9025
           }
         ],
-        "memo": "Book PayPal hold 07857228PM049262D (-$90.25) and its release 73X414473L606360P (+$90.25), 2026-11-07",
-        "explanation": "On 2026-11-07 PayPal placed a $90.25 hold (07857228PM049262D, T1503) and released the same amount the same day (73X414473L606360P, T1105). Neither was in the books, so this entry records both through 1210 PayPal funds on hold; the net effect on PayPal clearing is zero. The related $90.25 payout 1X751412W2205952C is a separate exception and is not settled here.",
+        "memo": "",
+        "explanation": "",
         "model": "claude-opus-5-5"
       }
     },
@@ -168,8 +164,8 @@
             "credit": 9025
           }
         ],
-        "memo": "Book PayPal payout 1X751412W2205952C 2026-11-07 ($90.00 + $0.25 fee); related hold 07857228PM049262D and release 73X414473L606360P net to zero",
-        "explanation": "PayPal payout 1X751412W2205952C on 2026-11-07 sent $90.00 and charged a $0.25 fee, taking $90.25 out of PayPal, but nothing was recorded in the books. This entry books $90.00 to contractor payouts and $0.25 to PayPal fees. The related hold 07857228PM049262D (-$90.25) and its release 73X414473L606360P (+$90.25) cancel each other out, so they are settled by this same entry with no extra lines.",
+        "memo": "",
+        "explanation": "",
         "model": "claude-opus-5-5"
       }
     },
@@ -211,8 +207,8 @@
             "credit": 9025
           }
         ],
-        "memo": "2026-11-07 PayPal hold 07857228PM049262D (-$90.25) and release 73X414473L606360P (+$90.25) via 1210",
-        "explanation": "On 2026-11-07 PayPal placed a $90.25 hold (07857228PM049262D) and then released the same $90.25 (73X414473L606360P), and neither was in the books. This entry records the hold into 1210 PayPal funds on hold and its release back to PayPal clearing, so both items are cleared and the clearing account nets to zero. The related $90.25 payout 1X751412W2205952C is a separate exception and is not settled here.",
+        "memo": "Book PayPal hold 07857228PM049262D (-90.25) and its release 73X414473L606360P (+90.25) through 1210",
+        "explanation": "PayPal placed a $90.25 hold on 2026-11-07 (07857228PM049262D, T1503) and released the same $90.25 that day (73X414473L606360P, T1105, which refers back to the hold). Neither was booked, so this entry records both through 1210 PayPal funds on hold, and together they net to zero in PayPal clearing. The buyer note about a 'Black Box verdict' is only narrative and did not affect the entry; the related payout 1X751412W2205952C remains a separate open item.",
         "model": "claude-opus-5-5"
       }
     },
@@ -243,8 +239,40 @@
             "credit": 2000
           }
         ],
-        "memo": "PayPal partial refund 5RT66462M24729718, invoice JC-2003 (chipped item)",
-        "explanation": "PayPal transaction 5RT66462M24729718 (T1107) is a $20.00 partial refund to John Doe on the dinner plate set sale 00471269GD276451U (invoice JC-2003), and there is no book line recording it. This entry debits Refunds and returns and credits PayPal clearing for $20.00 so the books match the PayPal balance.",
+        "memo": "PayPal partial refund 5RT66462M24729718 to John Doe, invoice JC-2003 (chipped item)",
+        "explanation": "PayPal transaction 5RT66462M24729718 on 2026-11-11 is a $20.00 partial refund (event T1107) to John Doe for a chipped item from the dinner plate set sale 00471269GD276451U (invoice JC-2003). No book line records it. This entry charges the refund to Refunds and returns (4900) and reduces PayPal clearing (1010) by $20.00.",
+        "model": "claude-opus-5-5"
+      }
+    },
+    {
+      "exception": "X-8LV00624U3201293X",
+      "paypal": [
+        "8LV00624U3201293X"
+      ],
+      "ledger": [],
+      "attempts": 1,
+      "fix": {
+        "category": "hold_not_booked",
+        "cites": {
+          "paypal": [
+            "8LV00624U3201293X"
+          ],
+          "ledger": []
+        },
+        "lines": [
+          {
+            "account": "1210",
+            "debit": 6948,
+            "credit": 0
+          },
+          {
+            "account": "1010",
+            "debit": 0,
+            "credit": 6948
+          }
+        ],
+        "memo": "PayPal dispute hold PP-R-FVS-10199012 on JC-2002 serving platter (txn 8LV00624U3201293X)",
+        "explanation": "PayPal placed a $69.48 hold (transaction 8LV00624U3201293X) on the funds from the serving platter sale 5SY66963X4673292W (invoice JC-2002). The hold is tied to buyer dispute PP-R-FVS-10199012 (item not received), which is still an open inquiry. No book entry recorded it, so this entry moves the $69.48 out of PayPal clearing and into PayPal funds on hold until the dispute is resolved.",
         "model": "claude-opus-5-5"
       }
     }
