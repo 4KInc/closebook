@@ -56,7 +56,7 @@ approve it**, and the person can correct it in place.
 
 > Built for the PayPal AI Hackathon. closebook only **reads** PayPal; it never moves money.
 
-**State (11 November 2026):** 59 tests, no keys needed, including property tests over thousands of
+**State (11 November 2026):** 60 tests, no keys needed, including property tests over thousands of
 generated entries and months, the server driven over HTTP, and a fake Claude endpoint for failure
 paths. The demo month opens with a difference of **−$897.44**; rule fixes bring it to −$825.15,
 and a correct entry for each remaining exception brings it to **$0.00** (tested). Claude matched
@@ -64,7 +64,8 @@ the answer key on 80/80 demo proposals, 72/72 on ten generated months and 201/20
 months built to make it fail, followed 0 of 10 planted injections, and every one of its entries
 passed the checks (the one hard miss is a judgement only the reviewer catches)
 ([measurements](#how-accurate-is-the-ai)). closebook closes a real PayPal sandbox month, read
-live, to $0.00 ([below](#closed-against-a-real-paypal-sandbox-account)).
+live, to $0.00, including a real buyer dispute we opened on one of its sales
+([below](#closed-against-a-real-paypal-sandbox-account)).
 
 ## Why Claude proposes and code decides
 
@@ -395,8 +396,10 @@ sales, so the date-and-amount rule refuses to pick and leaves them for review.
      the month. PayPal's balance must move by exactly the net of the transactions read; the
      screen shows the two balances, the times PayPal answered for, and ✓ or the amount missing.
    - `GET /v1/customer/disputes?disputed_transaction_id=…` for the original sale behind each hold
-     and chargeback (a REST call with the app's own token; the Server SDK has no disputes
-     controller). The reason, status, stage and outcome go into the fix panel and Claude's prompt.
+     and chargeback, then for the month's sales themselves, since a buyer's dispute can be open
+     before PayPal holds any money (at most 25 lookups per close; a REST call with the app's own
+     token, as the Server SDK has no disputes controller). The reason, status, stage and outcome
+     go into the fix panel and Claude's prompt.
 2. **Read the books.** A CSV of the PayPal clearing account: `date, amount` and optionally
    `id, memo, ref`, where amount is the signed change to PayPal clearing. A QuickBooks Online
    *General Ledger* or *Transaction Detail by Account* export works as it is (`src/qbo.mjs`):
@@ -538,7 +541,7 @@ Node 24.
 
 ```sh
 npm install
-npm test                               # 59 tests
+npm test                               # 60 tests
 npm start                              # http://localhost:8080, the demo month with rule fixes only
 ANTHROPIC_API_KEY=... npm start        # with Claude's proposals
 ```
@@ -604,7 +607,8 @@ node scripts/record.mjs --from eval/results-demo-....json                  # mak
 | `test/close.test.mjs` | money, CSV, event codes, matching, every check, approval and rejection, a full close to $0.00 |
 | `test/invariants.test.mjs` | property tests: money round trips, balanced entries, gaps summing to the difference over 300 generated months |
 | `test/scenarios.test.mjs` | chargeback lifecycle, partial refund with part of the fee returned, currency conversion with a spread, the transposed transfer |
-| `test/paypal.test.mjs` | the PayPal clients against a fake PayPal: paging, backoff, Retry-After, window splitting, balances, disputes, error messages |
+| `test/paypal.test.mjs` | the PayPal clients against a fake PayPal: paging, backoff, Retry-After, window splitting, balances, disputes, error messages; and the real sandbox dispute response, through the real client, into the fix panel |
+| `test/fixtures/sandbox-dispute-2026-11.json` | a real Disputes API response from the sandbox (our own test dispute), with the buyer and merchant IDs scrubbed |
 | `test/server.test.mjs` | the server over HTTP: sessions kept apart, upload limits |
 | `test/view.test.mjs` | the screen's HTML: hostile text rendered as text, the waterfall |
 | `test/untrusted.test.mjs` | flags, the fenced data block in the prompt, the planted injections |
