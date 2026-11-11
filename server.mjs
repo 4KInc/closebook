@@ -2,6 +2,8 @@
 //   PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET  sandbox REST app with Transaction search enabled (optional)
 //   ANTHROPIC_API_KEY                        for Claude's proposals (optional; without it only rules propose)
 //   PORT                                     default 8080
+//   CLAUDE_CALLS_PER_SESSION                 default 80
+//   CLAUDE_CALLS_PER_DAY                     server-wide cap for a public deploy, default 600
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -18,6 +20,16 @@ const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC = join(HERE, 'public');
 const PORT = Number(process.env.PORT ?? 8080);
 const CLAUDE_LIMIT = Number(process.env.CLAUDE_CALLS_PER_SESSION ?? 80);
+const CLAUDE_DAILY = Number(process.env.CLAUDE_CALLS_PER_DAY ?? 600);
+const MAX_SESSIONS = 2000;
+const daily = { day: '', calls: 0 };
+function takeDailyCall() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (daily.day !== today) { daily.day = today; daily.calls = 0; }
+  if (daily.calls >= CLAUDE_DAILY) return false;
+  daily.calls++;
+  return true;
+}
 
 const sessions = new Map(); // id -> { close, source, claudeCalls, touched }
 const claudeReady = () => Boolean(process.env.ANTHROPIC_API_KEY);
@@ -27,6 +39,11 @@ function session(req, res) {
   let id = m?.[1];
   if (!id || !sessions.has(id)) {
     id = randomUUID();
+    if (sessions.size >= MAX_SESSIONS) { // drop the least recently used session
+      let oldest = null;
+      for (const [k, v] of sessions) if (!oldest || v.touched < sessions.get(oldest).touched) oldest = k;
+      sessions.delete(oldest);
+    }
     sessions.set(id, { close: null, source: null, claudeCalls: 0 });
     res.setHeader('set-cookie', `cb=${id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`);
   }
@@ -140,6 +157,7 @@ async function route(req, res) {
       if (rule) { propose(c, ex.id, rule); return json(res, 200, view(s)); }
       if (!claudeReady()) return json(res, 400, { error: 'ANTHROPIC_API_KEY is not set on this server, so only rule fixes are available' });
       if (s.claudeCalls >= CLAUDE_LIMIT) return json(res, 429, { error: 'this session has used its Claude proposals; reload the month to start over' });
+      if (!takeDailyCall()) return json(res, 429, { error: 'this server has used its Claude proposals for today; rule fixes still work' });
       s.claudeCalls++;
       const r = await proposeWithClaude(c, ex);
       if (ex.status !== 'open') return json(res, 200, { skipped: true, ...view(s) });

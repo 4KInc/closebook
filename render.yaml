@@ -1,0 +1,22 @@
+# Render Blueprint: one web service. Secrets are marked sync: false, so Render asks for them
+# when the Blueprint is created and they never live in this repo.
+services:
+  - type: web
+    name: closebook
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: CLAUDE_CALLS_PER_DAY
+        value: "600"
