@@ -52,12 +52,14 @@ approve it**, and the person can correct it in place.
 
 > Built for the PayPal AI Hackathon. closebook only **reads** PayPal; it never moves money.
 
-**State:** 37 tests, including property tests over thousands of generated entries and months. The
-demo month opens with a difference of **−$897.44**; rule fixes bring it to −$825.15, and a correct
-entry for each remaining exception brings it to **$0.00** (tested). On 11 November 2026 closebook
-closed a real PayPal sandbox month (payouts, holds, sales, fees and a refund), read through
-Transaction Search, to $0.00
-([below](#closed-against-a-real-paypal-sandbox-account)).
+**State (11 November 2026):** 55 tests, no keys needed, including property tests over thousands of
+generated entries and months, the server driven over HTTP, and a fake Claude endpoint for failure
+paths. The demo month opens with a difference of **−$897.44**; rule fixes bring it to −$825.15,
+and a correct entry for each remaining exception brings it to **$0.00** (tested). Claude matched
+the answer key on 80/80 demo proposals and 72/72 on ten generated months, followed 0 of 10
+planted injections, and every one of its entries passed the checks
+([measurements](#how-accurate-is-the-ai)). closebook closes a real PayPal sandbox month, read
+live, to $0.00 ([below](#closed-against-a-real-paypal-sandbox-account)).
 
 ## Why Claude proposes and code decides
 
@@ -162,6 +164,31 @@ added, also had 80/80 ([results](eval/results-2026-11-11T154218.json)).
 What this does and does not show: the demo month is small and its mistakes were planted by us, so
 this is a measurement of closebook on a known month, not a general accuracy figure. For the
 duplicated pair, either identical line may be called the duplicate, and the key accepts either.
+
+**Ten generated months** (`src/generate.mjs`, seeds 101–110 in
+[`eval/seeds.json`](eval/seeds.json): five shops, 8 to 45 sales each, 3 to 7 planted mistakes of
+eight kinds, 72 exceptions for the AI in all). Measured on 11 November 2026, one run per model,
+called directly with the API key:
+
+| | `claude-opus-5-5` | `claude-sonnet-5-5` |
+|---|---|---|
+| Category matches the answer key | **72/72** | **72/72** |
+| Entry passed every check | **72/72** | **72/72** |
+| Passed on the first try | 67/72 (93%) | 64/72 (89%) |
+| Used the expected account | 55/55 | 52/52 |
+| Paired a same-amount sale with the right book line | 6/6 | 6/6 |
+| Median time per proposal | 5.8 s | 4.7 s |
+| Cost per exception (list price, tokens as billed) | $0.0332 | $0.0172 |
+
+Raw results: [Opus 5.5](eval/results-generated-opus-5-5-2026-11-11T170700.json),
+[Sonnet 5.5](eval/results-generated-sonnet-5-5-2026-11-11T170700.json). Every retry was an entry
+that failed a check first and passed after Claude saw the failures (Opus: 5 fee entries; Sonnet: 6
+fee entries, a mistyped transfer and a duplicate). Sonnet 5.5 is as accurate here at about half the
+cost and a little faster; closebook defaults to Opus 5.5 (`CLOSEBOOK_MODEL` changes it).
+
+The generated months are still ours: the same people wrote the generator, the answer keys and the
+prompt, so a perfect score says the mistakes we know how to plant are ones the model handles, not
+that every real month will go as well. That is why the checks and the reviewer stay.
 <!-- eval:end -->
 
 The checks are what make that number safe to use: an entry that is wrong in its arithmetic cannot
@@ -402,7 +429,7 @@ Node 24.
 
 ```sh
 npm install
-npm test                               # 37 tests
+npm test                               # 55 tests
 npm start                              # http://localhost:8080, the demo month with rule fixes only
 ANTHROPIC_API_KEY=... npm start        # with Claude's proposals
 ```
