@@ -289,7 +289,8 @@ async function proposeOne(id) {
 
 $('proposeAll').addEventListener('click', async () => {
   busy = true; render();
-  state = await api('/api/rules', { post: true, body: {} }); render();
+  try { state = await api('/api/rules', { post: true, body: {} }); } catch (err) { setStatus(err.message); busy = false; render(); return; }
+  render();
   const tried = new Set();
   const todo = () => state.exceptions.filter((e) => e.status === 'open' && !e.fix && !tried.has(e.id));
   let n = 0;
@@ -306,10 +307,14 @@ $('proposeAll').addEventListener('click', async () => {
 });
 
 $('approveRules').addEventListener('click', async () => {
-  for (const e of state.exceptions.filter((x) => x.status === 'open' && x.fix?.by === 'rule' && x.check?.ok)) {
-    state = await api(`/api/exceptions/${encodeURIComponent(e.id)}/approve`, { post: true, body: {} });
-  }
-  setStatus('Rule fixes approved.'); render();
+  busy = true; render();
+  try {
+    for (const e of state.exceptions.filter((x) => x.status === 'open' && x.fix?.by === 'rule' && x.check?.ok)) {
+      state = await api(`/api/exceptions/${encodeURIComponent(e.id)}/approve`, { post: true, body: {} });
+    }
+    setStatus('Rule fixes approved.');
+  } catch (err) { setStatus(err.message); }
+  busy = false; render();
 });
 
 $('tabs').addEventListener('click', (ev) => {
@@ -326,7 +331,7 @@ $('openPaypal').addEventListener('click', async () => {
   const file = $('csv').files[0];
   if (!$('period').value || !file) { $('paypalHint').textContent = 'Pick a month and a CSV first.'; return; }
   $('paypalHint').textContent = 'Reading PayPal Transaction Search…';
-  try { state = await api('/api/close/paypal', { body: { period: $('period').value, ledgerCsv: await file.text() } }); selected = null; grid?.destroy(); grid = null; $('paypalHint').textContent = ''; openView(); }
+  try { state = await api('/api/close/paypal', { body: { period: $('period').value, ledgerCsv: await file.text() } }); selected = null; grid?.destroy(); grid = null; $('paypalHint').textContent = ''; openView(); if (state.outside) setStatus(`${state.outside} book line${state.outside > 1 ? 's' : ''} dated outside ${state.period} ${state.outside > 1 ? 'were' : 'was'} left out of this close.`); }
   catch (err) { $('paypalHint').textContent = err.message; }
 });
 $('restart').addEventListener('click', () => { state = { config: state.config }; grid?.destroy(); grid = null; selected = null; history.pushState(null, '', location.pathname); render(); });

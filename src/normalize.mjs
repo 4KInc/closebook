@@ -57,12 +57,29 @@ export function ledgerRows(csvText) {
   const [header, ...body] = parseCsv(csvText);
   if (!header) throw new Error('the ledger CSV is empty');
   const col = Object.fromEntries(header.map((h, i) => [h.trim().toLowerCase(), i]));
-  for (const need of ['date', 'amount']) if (!(need in col)) throw new Error(`the ledger CSV needs a "${need}" column`);
-  return body.map((f, n) => ({
-    id: (col.id != null && f[col.id]?.trim()) || `L${String(n + 1).padStart(3, '0')}`,
-    date: f[col.date].trim().slice(0, 10),
-    amount: cents(f[col.amount]),
-    memo: col.memo != null ? (f[col.memo] ?? '').trim() : '',
-    ref: col.ref != null ? ((f[col.ref] ?? '').trim() || null) : null,
-  }));
+  for (const need of ['date', 'amount']) if (!(need in col)) throw new Error(`the ledger CSV needs a "${need}" column (it has: ${header.map((h) => h.trim()).join(', ')})`);
+  // Every problem is collected with its row number, so a person can fix the file in one pass.
+  const problems = [];
+  const seen = new Set();
+  const lines = body.map((f, n) => {
+    const row = n + 2; // the header is row 1
+    const id = (col.id != null && f[col.id]?.trim()) || `L${String(n + 1).padStart(3, '0')}`;
+    const date = (f[col.date] ?? '').trim();
+    const rawAmount = (f[col.amount] ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}/.test(date) || Number.isNaN(Date.parse(date.slice(0, 10)))) problems.push(`row ${row}: date "${date}" is not YYYY-MM-DD`);
+    let amount = 0;
+    if (rawAmount === '') problems.push(`row ${row}: amount is blank`);
+    else { try { amount = cents(rawAmount); } catch { problems.push(`row ${row}: amount "${rawAmount}" is not a number of dollars and cents`); } }
+    if (seen.has(id)) problems.push(`row ${row}: id "${id}" is used twice`);
+    seen.add(id);
+    return {
+      id,
+      date: date.slice(0, 10),
+      amount,
+      memo: col.memo != null ? (f[col.memo] ?? '').trim() : '',
+      ref: col.ref != null ? ((f[col.ref] ?? '').trim() || null) : null,
+    };
+  });
+  if (problems.length) throw new Error(`${problems.length} problem${problems.length > 1 ? 's' : ''} in the books CSV: ${problems.slice(0, 8).join('; ')}${problems.length > 8 ? `; and ${problems.length - 8} more` : ''}`);
+  return lines;
 }

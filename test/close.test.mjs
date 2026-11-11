@@ -16,6 +16,10 @@ test('money parses and formats whole cents without floats', () => {
   assert.equal(cents('-0.49'), -49);
   assert.equal(cents('(12.5)'), -1250);
   assert.equal(cents('$7'), 700);
+  assert.equal(cents('-$1,980.00'), -198000);
+  assert.throws(() => cents('5-'));
+  assert.throws(() => cents('(5'));
+  assert.throws(() => cents('-(5)'));
   assert.throws(() => cents('12.345'));
   assert.throws(() => cents('abc'));
   assert.equal(fmt(-198000), '-$1,980.00');
@@ -24,6 +28,22 @@ test('money parses and formats whole cents without floats', () => {
 test('CSV parser handles quotes, commas and CRLF', () => {
   assert.deepEqual(parseCsv('a,b\r\n"x, y","say ""hi"""\n'), [['a', 'b'], ['x, y', 'say "hi"']]);
   assert.throws(() => ledgerRows('date,memo\n2026-10-01,x'), /amount/);
+});
+
+test('the books CSV is refused with row numbers when dates, amounts or ids are wrong', () => {
+  assert.throws(() => ledgerRows('date,amount\n10/05/2026,12.00'), /row 2: date "10\/05\/2026" is not YYYY-MM-DD/);
+  assert.throws(() => ledgerRows('date,amount\n2026-10-05,'), /row 2: amount is blank/);
+  assert.throws(() => ledgerRows('date,amount\n2026-10-05,1-2'), /row 2: amount "1-2"/);
+  assert.throws(() => ledgerRows('id,date,amount\nA,2026-10-05,1\nA,2026-10-06,2'), /row 3: id "A" is used twice/);
+  const e = (() => { try { ledgerRows('date,amount\nx,1\ny,2\nz,'); } catch (err) { return err.message; } })();
+  assert.match(e, /^4 problems/);
+  assert.deepEqual(ledgerRows('id,date,amount\nA,2026-10-05T10:00:00Z,"(1,234.50)"').map((l) => [l.date, l.amount]), [['2026-10-05', -123450]]);
+});
+
+test('book lines outside the period are counted, not silently dropped', () => {
+  const c = openClose({ paypal: [], ledger: ledgerRows('date,amount\n2026-10-05,1\n2026-09-30,2'), period: '2026-10' });
+  assert.equal(c.ledger.length, 1);
+  assert.equal(c.outside, 1);
 });
 
 test('event codes map to kinds', () => {

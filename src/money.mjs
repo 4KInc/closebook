@@ -6,10 +6,11 @@ export function cents(value) {
   // (0.1 + 0.2) is refused instead of rounded.
   if (typeof value === 'number') { if (!Number.isFinite(value)) throw new Error(`not an amount: ${value}`); return cents(String(value)); }
   const s = String(value).trim().replace(/[$,\s]/g, '');
-  const neg = /^\(.*\)$/.test(s) || s.startsWith('-');
-  const digits = s.replace(/[()\-+]/g, '');
-  if (!/^\d*(\.\d{0,2})?$/.test(digits) || digits === '' || digits === '.') throw new Error(`not an amount: ${value}`);
-  const [whole, frac = ''] = digits.split('.');
+  // An optional sign, or parentheses around the whole amount, then digits with at most two decimals.
+  const m = /^([-+]?)(\(?)(\d+(?:\.\d{0,2})?|\.\d{1,2})(\)?)$/.exec(s);
+  if (!m || m[2] !== (m[4] ? '(' : '') || (m[1] && m[2])) throw new Error(`not an amount: ${value}`);
+  const neg = m[1] === '-' || m[2] === '(';
+  const [whole, frac = ''] = m[3].split('.');
   const v = Number(whole || '0') * 100 + Number((frac + '00').slice(0, 2));
   return neg ? -v : v;
 }

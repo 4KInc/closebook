@@ -13,6 +13,7 @@ export function openClose({ paypal, ledger, period, currency = 'USD', chart = CH
   return {
     period, currency, chart,
     paypal: base, foreign, ledger: books, matches,
+    outside: ledger.length - books.length, // book lines dated outside the period, left out of the close
     exceptions: exceptions.map((e) => ({ ...e, hints: found.get(e.id) ?? [], status: 'open', fix: null, check: null })),
     decisions: [],
   };
@@ -56,6 +57,7 @@ export function propose(close, exceptionId, fix) {
 export function approve(close, exceptionId, by = 'reviewer') {
   const ex = close.exceptions.find((e) => e.id === exceptionId);
   if (!ex?.fix) throw new Error(`${exceptionId} has no proposed fix`);
+  if (ex.status !== 'open') throw new Error(`${exceptionId} is already ${ex.status}`);
   const recheck = check(ex.fix, stateOf(close), close.chart);
   if (!recheck.ok) throw new Error(`${exceptionId}: the fix fails its checks: ${recheck.failures.map((f) => f.detail).join('; ')}`);
   const citedP = new Set(ex.fix.cites.paypal), citedL = new Set(ex.fix.cites.ledger);

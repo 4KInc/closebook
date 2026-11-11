@@ -9,7 +9,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { extname, join, normalize as normPath } from 'node:path';
+import { extname, join, sep, normalize as normPath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { demoMonth } from './src/demo.mjs';
 import { paypalRows, ledgerRows } from './src/normalize.mjs';
@@ -62,7 +62,7 @@ async function body(req, limit = 2_000_000) {
   let size = 0; const chunks = [];
   for await (const c of req) { size += c.length; if (size > limit) throw Object.assign(new Error('request too large'), { status: 413 }); chunks.push(c); }
   const text = Buffer.concat(chunks).toString('utf8');
-  return text ? JSON.parse(text) : {};
+  try { return text ? JSON.parse(text) : {}; } catch { throw Object.assign(new Error('the request body is not JSON'), { status: 400 }); }
 }
 
 function view(s) {
@@ -75,6 +75,7 @@ function view(s) {
     summary: summary(c),
     paypal: c.paypal, ledger: c.ledger, foreign: c.foreign,
     matches: c.matches,
+    outside: c.outside ?? 0,
     exceptions: c.exceptions,
     decisions: c.decisions,
     claudeCallsLeft: CLAUDE_LIMIT - s.claudeCalls,
@@ -117,7 +118,7 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
 async function staticFile(req, res) {
   const path = new URL(req.url, 'http://x').pathname;
   const file = normPath(join(PUBLIC, path === '/' ? 'index.html' : path));
-  if (!file.startsWith(PUBLIC)) return json(res, 404, { error: 'not found' });
+  if (file !== PUBLIC && !file.startsWith(PUBLIC + sep)) return json(res, 404, { error: 'not found' });
   try {
     const data = await readFile(file);
     res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' });
@@ -146,6 +147,8 @@ async function route(req, res) {
     if (!paypalConfigured()) return json(res, 400, { error: 'PayPal credentials are not configured on this server' });
     let ledger;
     try { ledger = ledgerRows(ledgerCsv ?? ''); } catch (e) { return json(res, 400, { error: `The books CSV could not be read: ${e.message}` }); }
+    if (!/^\d{4}-\d{2}$/.test(period ?? '')) return json(res, 400, { error: 'pick a month first' });
+    if (ledger.length && !ledger.some((l) => l.date.startsWith(period))) return json(res, 400, { error: `None of the ${ledger.length} book lines is dated in ${period}. Check the month, or the dates in the CSV.` });
     let details;
     try { details = await fetchMonth(period); }
     catch (e) {
@@ -202,8 +205,9 @@ async function route(req, res) {
       ex.firstFailures = r.attempts.length > 1 ? r.attempts[0].check.failures : null;
       return json(res, 200, view(s));
     }
-    if (action === 'approve') { approve(c, ex.id); return json(res, 200, view(s)); }
-    if (action === 'reject') { const { reason } = await body(req); reject(c, ex.id, String(reason ?? '').slice(0, 500)); return json(res, 200, view(s)); }
+    // A refused approval (checks fail, nothing proposed, already settled) is the reviewer's to fix: 409.
+    if (action === 'approve') { try { approve(c, ex.id); } catch (e) { return json(res, 409, { error: e.message }); } return json(res, 200, view(s)); }
+    if (action === 'reject') { const { reason } = await body(req); try { reject(c, ex.id, String(reason ?? '').slice(0, 500)); } catch (e) { return json(res, 409, { error: e.message }); } return json(res, 200, view(s)); }
   }
   json(res, 404, { error: 'not found' });
 }
