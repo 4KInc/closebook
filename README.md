@@ -52,6 +52,35 @@ Transaction Search, and one search covers at most 31 days.
 npm test
 ```
 
+### Settings
+
+| Variable | What it does |
+|---|---|
+| `ANTHROPIC_API_KEY` | Turns on Claude's proposals. Without it, only rule fixes are proposed. |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | A sandbox REST app with Transaction search enabled. Without them, only the demo month works. |
+| `PAYPAL_ENVIRONMENT` | `production` to read a live account; sandbox otherwise. |
+| `CLOSEBOOK_MODEL` | The Claude model, default `claude-opus-5-5`. |
+| `CLAUDE_CALLS_PER_SESSION` | Claude proposals one browser session may ask for, default 80. |
+| `CLAUDE_CALLS_PER_DAY` | Claude proposals the whole server may make per day (UTC), default 600. Rule fixes keep working past it. |
+| `PORT` | Default 8080. |
+
+Each browser gets its own close, held in server memory: it is lost on restart, sessions idle for
+6 hours are dropped, and at most 2,000 are kept.
+
+## Deploy on Render
+
+`render.yaml` is a Render Blueprint for one Node 24 web service (`npm ci --omit=dev`, then
+`npm start`, health check on `/`, redeployed on every push to `main`). The secrets are marked
+`sync: false`, so Render asks for them when the Blueprint is created and they are never stored in
+the repo.
+
+1. Open https://dashboard.render.com/blueprint/new and pick this repo.
+2. Enter `ANTHROPIC_API_KEY`. Leave the PayPal values blank to run only the demo month.
+3. Apply.
+
+The Blueprint uses Render's free plan, which stops the service after 15 minutes without traffic;
+the next visit waits for it to start again.
+
 ## How it is built
 
 | File | What it does |
@@ -65,12 +94,16 @@ npm test
 | `src/claude.mjs` | Claude's proposal: one structured-output call per exception, one retry on failed checks |
 | `src/demo.mjs` | The demo month, with an answer key of what was planted |
 | `public/` | The review screen, built on AG Grid |
+| `server.mjs` | The HTTP server: sessions, the API, the Claude call limits, static files |
+| `render.yaml` | The Render Blueprint |
+| `test/` | Tests for money parsing, matching, the checks, approvals and a full close to $0.00 |
 
 ## Built with
 
 - PayPal Transaction Search API, through PayPal's Server SDK
 - Claude (`claude-opus-5-5`) through the Anthropic SDK, with structured outputs
 - AG Grid Community for the review grids
+- Node 24 with no web framework, and a Render Blueprint for hosting
 
 ## License
 
