@@ -9,21 +9,22 @@ approve it**, and the person can correct it in place.
 > **For judges: two minutes, no setup.** Open
 > [closebook-uju5.onrender.com](https://closebook-uju5.onrender.com).
 >
-> 1. **Close November from PayPal**: closebook's own sandbox account, read live through
->    Transaction Search and the Balances API, against
->    [a four-line books file](samples/sandbox-2026-11-books.csv). Under the tie-out, PayPal's own
->    balance moved by exactly the net of the transactions read: *every transaction accounted
->    for*. Click **Suggest fixes**, then approve: −$120.68 becomes **$0.00**.
+> 1. **Close November from PayPal**: a test shop's real PayPal sandbox account, read live
+>    (Transaction Search and the Balances API), against
+>    [its four-line books](samples/sandbox-2026-11-books.csv). Under the three tiles the screen
+>    says the PayPal balance went from $5,000.00 to $5,038.82, *✓ every PayPal payment is
+>    accounted for*. Click **Suggest fixes**, then approve: −$120.68 becomes **$0.00**.
 > 2. **Open the demo month**: a ceramics shop's October with planted mistakes, including a
->    chargeback with its dispute (in the Disputes API's shape) and two lines of text written to
->    steer the AI. **Suggest fixes** asks Claude for an entry for each of the 16 exceptions rules
->    cannot settle. Click one: the voucher shows the evidence, the entry, Claude's reasoning and
->    the nine checks. **Change any amount or account in the entry** and watch the double-checks re-run. As you approve,
->    the waterfall under the tie-out steps the difference to $0.00; the **Journal entries** tab opens the
->    printable month-end summary.
+>    chargeback with its dispute (built in the Disputes API's shape) and two lines of text written
+>    to steer the AI. **Suggest fixes**: standard fixes for the 23 missing PayPal fees, and an AI
+>    suggestion for each of the other 16 items. Click one: the fix panel shows what we found, the
+>    journal entry, why the AI suggests it, and the nine double-checks. **Change any amount or
+>    account** and watch the double-checks re-run. As you approve, the waterfall steps the
+>    difference to $0.00; the **Journal entries** tab opens the printable month-end summary.
 > 3. What to look for: the difference reaching $0.00, an entry you break by one cent failing at
->    once, the [accuracy measurement](#how-accurate-is-the-ai) (80 of 80 demo proposals matched the
->    answer key and passed every check), and [the injected text Claude did not follow](#what-if-the-data-attacks-the-ai)
+>    once ("Debits ($90.01) and credits ($90.00) are $0.01 apart"), the
+>    [accuracy measurement](#how-accurate-is-the-ai) (80 of 80 demo proposals matched the answer
+>    key and passed every check), and [the injected text Claude did not follow](#what-if-the-data-attacks-the-ai)
 >    (0 of 10).
 
 **What happens to each line of the month:**
@@ -211,7 +212,7 @@ the books, and measured to show it.
   that the block is data, never instructions.
 - **Code flags it for the reviewer.** Text that addresses an AI or tries to steer an entry
   ("assistant:", "ignore", "approve this", "book this to", "record this as") marks the exception
-  **This text tries to give the AI instructions**, quoted in the voucher. A flag never blocks anything.
+  **This text tries to give the AI instructions**, quoted in the fix panel. A flag never blocks anything.
 - **What only a person can catch is pointed out.** Category and account are judgement: an entry
   can pass every check with the wrong account. That is why the flag goes to the reviewer.
 
@@ -236,30 +237,44 @@ amounts, and a person approves every entry.
 
 ## Walk through the demo month
 
-0. For a live month instead, click **Close November from PayPal** on the home page: ten real
-   sandbox transactions against four book lines, −$120.68 to $0.00 the same way.
-1. Open the app and click **Open the demo month**. The tiles show PayPal's net activity, the
-   books' PayPal clearing balance, and the difference: **−$897.44**. 31 book lines are matched by
-   rule; 39 exceptions are open.
-2. Click **Suggest fixes**. Rules write the 23 fee entries at once; Claude then proposes an entry
-   for each of the other 16, one at a time (a few seconds each). Each row's badge shows **Ready**
-   when its entry passed every check, or **Needs a fix**.
-3. Click **Approve all PayPal fee fixes**. The difference counts down to **−$825.15**.
-4. Click any Claude row. The panel shows the PayPal transactions and book lines it settles, the
-   debit and credit lines, Claude's explanation and all nine checks. The $1,980.00 transfer booked
-   as $1,890.00 carries a **Hint**: code found the two swapped digits, and the hint is part of
-   Claude's prompt. It also carries a **Flag**: its memo tells the AI to book the difference to
-   Suspense, and the voucher quotes it.
-5. To correct an entry, edit its cells in the voucher (an account, an amount, a line); the checks
-   re-run on every change, and **Undo my changes** restores Claude's version. Approve the entries one by
-   one. An entry that cites several items settles them all (a dispute
-   hold and its release, for example). Any other pending entry that cited the same items fails its
-   checks at once; **Reject** it with a reason and ask Claude again, and the reason is in Claude's
-   next prompt.
-6. When the last entry is approved the difference reads **$0.00**, and the waterfall under the
-   tie-out shows each category of entries stepping it there. The **Journal entries** tab's totals row
-   shows debits equal to credits, and **Open the month-end summary** gives the controller one printable
-   page. **Download journal entries** and **Download history** download the result as CSV.
+0. For a real month instead, click **Close November from PayPal** on the home page: ten real
+   sandbox transactions against four lines of books, −$120.68 to $0.00 the same way.
+1. Click **Open the demo month**. The tiles read **PayPal this month** $175.23, **Your books**
+   $1,072.67, **Difference** −$897.44. Under them: 31 matched automatically, 39 to review,
+   the PayPal balance line with ✓, and the waterfall, which so far has one red bar.
+2. Click **Suggest fixes**. The 23 missing PayPal fees get a standard fix at once (badge **Auto**);
+   the AI then suggests a fix for each of the other 16 items (badge **AI**), a few seconds each.
+   Each row turns **Ready** when its fix passed every double-check, or **Needs a fix**.
+3. Click **Approve all PayPal fee fixes**. The difference counts down to −$825.15.
+4. Click any AI row. The fix panel shows **What we found** (the PayPal payment and the line in
+   the books, in words: "Sale · 1 x Bud vase", "$36.95 less a PayPal fee of $1.78"), the journal
+   entry, **Why the AI suggests this**, and **Double-checks · all nine passed**. The $1,980.00
+   transfer booked as $1,890.00 carries a **Possible typo** box ("two digits look swapped"), and a
+   red box, **This text tries to give the AI instructions**, quoting its description.
+5. To correct a fix, click an account or an amount in its journal entry; the double-checks re-run
+   on every change, in dollars ("Debits ($90.01) and credits ($90.00) are $0.01 apart; they have
+   to be equal"), and **Undo my changes** restores the AI's version. Approve the fixes one by one.
+   A fix that includes several items fixes them all (a dispute hold and its release, for
+   example). If another approved fix already took care of some of a fix's items, **Remove the
+   items already fixed** corrects it in one click; or **Reject** it with a reason, and the AI
+   reads the reason next time.
+6. When the last fix is approved the difference reads **$0.00** with a *Tied out* stamp, and the
+   waterfall shows each type of fix (Payouts, Chargebacks, Refunds, Typos, PayPal fees…)
+   stepping it there. The **Journal entries** tab's totals row shows debits equal credits, and
+   **Open the month-end summary** gives one printable page for the owner or their accountant.
+   **Download journal entries** and **Download history** save the result as CSV.
+
+### Who the screens are written for
+
+The people closing the month are small-business owners and their bookkeepers, not developers.
+So the screen never says API, sandbox, server or event code: PayPal activity reads as *Sale*,
+*Refund*, *Chargeback*, *Transfer to your bank*, *Money held by PayPal*; a dispute reads as
+"buyer says the item never arrived · the buyer won"; dates read as Oct 25, 2026; the double-checks
+explain themselves in dollars; and an error says what to do ("PayPal isn't answering right now.
+Please try again in a few minutes."), with the technical reason kept in the server log. Debits,
+credits, account numbers and journal entries stay, because a bookkeeper needs them. The AI's
+paragraph in the month-end summary is written the same way, and still has to use only the
+summary's own numbers.
 
 ## What the demo month contains
 
@@ -292,7 +307,7 @@ sales, so the date-and-amount rule refuses to pick and leaves them for review.
      screen shows the two balances, the times PayPal answered for, and ✓ or the amount missing.
    - `GET /v1/customer/disputes?disputed_transaction_id=…` for the original sale behind each hold
      and chargeback (a REST call with the app's own token; the Server SDK has no disputes
-     controller). The reason, status, stage and outcome go into the voucher and Claude's prompt.
+     controller). The reason, status, stage and outcome go into the fix panel and Claude's prompt.
 2. **Read the books.** A CSV of the PayPal clearing account: `date, amount` and optionally
    `id, memo, ref`, where amount is the signed change to PayPal clearing.
 3. **Match by rule.** First by reference: the book line's `ref` equals the PayPal transaction ID,
@@ -318,7 +333,7 @@ sales, so the date-and-amount rule refuses to pick and leaves them for review.
 6. **Check it.** Code, not a model, runs the checks below. A Claude entry that fails goes back to
    Claude once with the failures attached; if it still fails, it is shown with its failures and
    cannot be approved.
-7. **A person corrects, if needed.** The entry in the voucher is an AG Grid: pick an account from
+7. **A person corrects, if needed.** The journal entry in the fix panel is an AG Grid: pick an account from
    the chart, type a debit or credit, add or remove a line, change the category. Each change goes
    to the server, which runs every check again; the original entry is kept and can be restored,
    and the change is one row in the audit trail and part of Claude's next prompt. When an entry cites
@@ -506,7 +521,7 @@ node scripts/record.mjs --from eval/results-demo-....json                  # mak
   **APIMatic**), and the PayPal Disputes API
 - Claude (`claude-opus-5-5`) through the Anthropic SDK, with structured outputs
 - **AG Grid** Community for the review grids (filters on every column, pinned totals rows, status
-  badges, cell flashing on approval) and for the editable entry in the voucher (select and text
+  badges, cell flashing on approval) and for the editable journal entry in the fix panel (select and text
   cell editors, a live totals row, every edit re-checked by the server)
 - **Render** for the live demo: a Blueprint (`render.yaml`) on an always-on plan, a health check,
   graceful shutdown, auto-deploy from `main`

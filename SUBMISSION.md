@@ -29,8 +29,8 @@ that balances but moves the wrong account, leaves the books wrong while looking 
    to close. An entry that fails cannot be approved.
 5. **A person approves, corrects or rejects** every entry. Correcting is editing the entry in an
    AG Grid; the checks re-run on every edit.
-6. **The difference goes to $0.00**, visibly (a waterfall on the tie-out), and the controller gets
-   a one-page month-end summary. Because every exception carries a gap and the gaps add up to the
+6. **The difference goes to $0.00**, visibly (a waterfall under the month's figures), and the owner gets
+   a one-page month-end summary to keep or send to their accountant. Because every exception carries a gap and the gaps add up to the
    difference, "every exception closed by an entry that passed the checks" means exactly $0.00.
 
 closebook only reads PayPal. It never moves money.
@@ -73,13 +73,17 @@ arithmetic; a person signs off on what only a person can judge.
 - Measured, not just demoed: an eval harness grades Claude against answer keys (below).
 
 ### Design
-- One coherent screen: the tie-out (PayPal minus books equals the difference), a ledger-style
-  exceptions grid, and a journal voucher per exception with the evidence, the entry, the reasoning
-  and the nine checks.
+- Written for the people who close the month: small-business owners and their bookkeepers. The
+  screen never says API, sandbox or event code: PayPal activity reads as Sale, Refund, Chargeback,
+  Transfer to your bank; disputes read as "buyer says the item never arrived · the buyer won"; the
+  double-checks explain themselves in dollars; errors say what to do.
+- One coherent screen: PayPal this month minus your books equals the difference, a ledger-style
+  list of items to review, and a fix panel per item with what we found, the journal entry, why
+  the AI suggests it and the nine double-checks.
 - The reviewer **corrects** an entry in place (an AG Grid) instead of only rejecting it; breaking
   it by one cent fails the checks at once; *Undo my changes* restores Claude's version.
-- A waterfall shows the difference stepping to $0.00 by category; the month-end summary prints on one or
-  two pages for the controller.
+- A waterfall shows the difference stepping to $0.00 by type of fix; the month-end summary prints
+  on one or two pages for the owner or their accountant.
 - Everything typed or uploaded is rendered as text; uploads are bounded (2 MB, 20,000 rows) with
   clear errors; each browser's close is its own.
 
@@ -172,7 +176,7 @@ https://github.com/4KInc/closebook/tree/main/eval
   status and provenance badges, floating filters on every column, a pinned status column, a
   pinned totals row recomputed over the filtered rows (debits equal credits on the journal; gaps
   add up to the difference on the exceptions), `getRowId` updates in place and `flashCells` on
-  approval, themed from the page's tokens in light and dark. The **editable entry** in the voucher
+  approval, themed from the page's tokens in light and dark. The **editable journal entry** in the fix panel
   is its own grid: `agSelectCellEditor` over the chart of accounts, dollar cells parsed into whole
   cents without floating point by a `valueSetter` that clears the other side of the line,
   `singleClickEdit`, auto-height with a pinned totals row, and every `onCellValueChanged` sent to
