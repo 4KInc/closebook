@@ -1,0 +1,19 @@
+{
+  "name": "closebook",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Month-end close for PayPal: rules match the books to PayPal activity, Claude proposes fixes for what does not match, and every fix is checked before a person approves it.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.8.0",
+    "@paypal/paypal-server-sdk": "2.5.0"
+  }
+}

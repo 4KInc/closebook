@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>closebook</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23146c5b'/><path d='M9 17l5 5 9-12' stroke='white' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@36.2.0/dist/ag-grid-community.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark">✓</span> closebook <span class="tag">month-end close for PayPal</span></div>
+  <div class="source" id="source"></div>
+</header>
+
+<section id="start" class="start" hidden>
+  <h1>Close the month in PayPal, line by line.</h1>
+  <p class="lede">Rules match your books to PayPal's Transaction Search. Claude proposes a journal entry for each line that doesn't match. Each entry must pass fixed checks before you can approve it: it must balance and close the gap exactly. The reviewer approves every entry.</p>
+  <div class="cards">
+    <div class="card">
+      <h2>Demo month</h2>
+      <p>A small ceramics shop's October, with mistakes in the books: unbooked fees, a refund, a chargeback with its hold, a contractor payout, a transfer typed wrong, a duplicate, and a cash sale posted to PayPal.</p>
+      <button class="primary" id="openDemo">Open the demo month</button>
+    </div>
+    <div class="card">
+      <h2>Your PayPal sandbox</h2>
+      <p>Pick a month and upload the books for the PayPal clearing account as CSV, with the columns <code>date, amount</code> and optionally <code>id, memo, ref</code>. <a href="/api/demo-ledger.csv">Example CSV</a></p>
+      <div class="row"><input type="month" id="period"><input type="file" id="csv" accept=".csv,text/csv"></div>
+      <button id="openPaypal">Read PayPal and match</button>
+      <p class="hint" id="paypalHint"></p>
+    </div>
+  </div>
+</section>
+
+<main id="app" hidden>
+  <section class="tie">
+    <div class="tile"><div class="k">PayPal net activity</div><div class="v" id="tPaypal"></div></div>
+    <div class="op">−</div>
+    <div class="tile"><div class="k">Books, PayPal clearing</div><div class="v" id="tBooks"></div></div>
+    <div class="op">=</div>
+    <div class="tile diff" id="tDiffTile"><div class="k">Unreconciled difference</div><div class="v" id="tDiff"></div></div>
+    <div class="progress">
+      <div class="bar"><span id="barDone"></span><span id="barReady"></span></div>
+      <div class="counts" id="counts"></div>
+    </div>
+  </section>
+
+  <section class="actions">
+    <button class="primary" id="proposeAll">Propose fixes</button>
+    <button id="approveRules">Approve all rule fixes that pass</button>
+    <span class="spacer"></span>
+    <span class="status" id="status"></span>
+    <a class="button" id="exportCsv" href="/api/journal.csv">Export journal CSV</a>
+    <button class="ghost" id="restart">Start over</button>
+  </section>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="exceptions" class="on">Exceptions <b id="nEx"></b></button>
+    <button data-tab="matched">Matched <b id="nMatched"></b></button>
+    <button data-tab="paypal">PayPal activity <b id="nPaypal"></b></button>
+    <button data-tab="books">Books <b id="nBooks"></b></button>
+    <button data-tab="journal">Journal <b id="nJournal"></b></button>
+  </nav>
+
+  <div class="work">
+    <div class="gridwrap"><div id="grid" class="grid"></div></div>
+    <aside class="detail" id="detail"><p class="muted">Select an exception to see the proposed entry, what it cites, and the checks.</p></aside>
+  </div>
+</main>
+
+<footer class="foot">Read-only on PayPal: closebook uses Transaction Search and never moves money. Fixes are proposals until a person approves them.</footer>
+<script src="app.js"></script>
+</body>
+</html>
