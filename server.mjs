@@ -192,8 +192,8 @@ async function route(req, res) {
       const rule = ruleFix(c, ex);
       if (rule) { propose(c, ex.id, rule); return json(res, 200, view(s)); }
       if (!claudeReady()) return json(res, 400, { error: 'ANTHROPIC_API_KEY is not set on this server, so only rule fixes are available' });
-      if (s.claudeCalls >= CLAUDE_LIMIT) return json(res, 429, { error: 'this session has used its Claude proposals; reload the month to start over' });
-      if (!takeDailyCall()) return json(res, 429, { error: 'this server has used its Claude proposals for today; rule fixes still work' });
+      if (s.claudeCalls >= CLAUDE_LIMIT) return json(res, 429, { error: 'this session has used its AI proposals; reload the month to start over' });
+      if (!takeDailyCall()) return json(res, 429, { error: 'this server has used its AI proposals for today; rule fixes still work' });
       s.claudeCalls++;
       const r = await proposeWithClaude(c, ex);
       if (ex.status !== 'open') return json(res, 200, { skipped: true, ...view(s) });

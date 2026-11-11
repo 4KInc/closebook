@@ -65,7 +65,7 @@ function render() {
   }
   $('start').hidden = true; $('app').hidden = false;
   const s = state.summary;
-  $('source').innerHTML = [state.source.label, `${state.currency ?? 'USD'} · PayPal clearing 1010`, state.config.claude ? `Proposals: ${state.config.model}` : 'Claude off: rules only'].map((t) => `<span>${esc(t)}</span>`).join('');
+  $('source').innerHTML = [state.source.label, `${state.currency ?? 'USD'} · PayPal clearing 1010`, state.config.claude ? `AI: ${state.config.model}` : 'AI off: rules only'].map((t) => `<span>${esc(t)}</span>`).join('');
   $('tPaypal').textContent = fmt(s.paypalNet);
   $('tBooks').textContent = fmt(s.books);
   countTo($('tDiff'), s.difference);
@@ -89,11 +89,11 @@ const badge = (cls, text, title = '') => `<span class="badge ${cls}"${title ? ` 
 const statusChip = (e) => {
   if (e.status === 'approved') return badge('good', 'Approved');
   if (e.status === 'covered') return badge('good', 'Settled', `settled by ${e.coveredBy}`);
-  if (e.pending) return badge('info pulse', 'Claude…');
+  if (e.pending) return badge('info pulse', 'AI…');
   if (!e.fix) return badge('plain', 'Exception');
   return e.check.ok ? badge('ready', 'Ready') : badge('bad', 'Fails checks');
 };
-const byBadge = (e) => (!e.fix ? '' : e.fix.by === 'claude' ? badge('claude', 'Claude') : badge('rule', 'Rule'));
+const byBadge = (e) => (!e.fix ? '' : e.fix.by === 'claude' ? badge('claude', 'AI') : badge('rule', 'Rule'));
 
 function itemsLabel(e) {
   const byP = new Map(state.paypal.map((t) => [t.id, t]));
@@ -115,7 +115,7 @@ function columnsAndRows() {
       what: itemsLabel(e),
       kind: e.source === 'fee' ? 'fee gap' : e.source === 'paypal' ? 'only in PayPal' : 'only in books',
       category: e.fix ? state.config.categories[e.fix.category] ?? e.fix.category : '',
-      by: e.fix ? (e.fix.by === 'claude' ? 'Claude' : 'rule') : '',
+      by: e.fix ? (e.fix.by === 'claude' ? 'AI' : 'rule') : '',
       entry: e.fix ? e.fix.lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.account} ${fmt(l.debit || l.credit)}`).join(', ') : '',
       order: e.status === 'open' ? (e.fix ? (e.check.ok ? 1 : 0) : 2) : 3,
       // The cell shows a chip built from several fields; give it a value that changes with them
@@ -154,8 +154,8 @@ function columnsAndRows() {
     return { rows: state.ledger, cols: [textCol('id', 'Line', { width: 90, cellClass: 'mono' }), textCol('date', 'Date', { width: 110 }), textCol('memo', 'Memo', { flex: 1 }), textCol('ref', 'Ref', { width: 140, cellClass: 'mono' }), moneyCol('amount', 'Amount')] };
   }
   const rows = [];
-  state.exceptions.filter((e) => e.status === 'approved').forEach((e, i) => e.fix.lines.forEach((l) => rows.push({ entry: `JE-${String(i + 1).padStart(3, '0')}`, account: `${l.account} ${state.chart[l.account] ?? ''}`, debit: l.debit || null, credit: l.credit || null, memo: e.fix.memo, by: e.fix.by === 'claude' ? 'Claude' : 'rule', exception: e.id })));
-  return { rows, cols: [textCol('entry', 'Entry', { width: 96, cellClass: 'mono' }), textCol('account', 'Account', { width: 200 }), moneyCol('debit', 'Debit'), moneyCol('credit', 'Credit'), textCol('memo', 'Memo', { flex: 1, tooltipField: 'memo' }), { field: 'by', headerName: 'By', width: 92, cellRenderer: (p) => (p.node.rowPinned ? '' : p.value === 'Claude' ? badge('claude', 'Claude') : badge('rule', 'Rule')), filter: 'agTextColumnFilter' }, textCol('exception', 'Exception', { width: 210, cellClass: 'mono' })] };
+  state.exceptions.filter((e) => e.status === 'approved').forEach((e, i) => e.fix.lines.forEach((l) => rows.push({ entry: `JE-${String(i + 1).padStart(3, '0')}`, account: `${l.account} ${state.chart[l.account] ?? ''}`, debit: l.debit || null, credit: l.credit || null, memo: e.fix.memo, by: e.fix.by === 'claude' ? 'AI' : 'rule', exception: e.id })));
+  return { rows, cols: [textCol('entry', 'Entry', { width: 96, cellClass: 'mono' }), textCol('account', 'Account', { width: 200 }), moneyCol('debit', 'Debit'), moneyCol('credit', 'Credit'), textCol('memo', 'Memo', { flex: 1, tooltipField: 'memo' }), { field: 'by', headerName: 'By', width: 92, cellRenderer: (p) => (p.node.rowPinned ? '' : p.value === 'AI' ? badge('claude', 'AI') : badge('rule', 'Rule')), filter: 'agTextColumnFilter' }, textCol('exception', 'Exception', { width: 210, cellClass: 'mono' })] };
 }
 
 // The grid takes its colours from the page's tokens, so it is green-bar paper in both themes.
@@ -238,7 +238,7 @@ function drawDetail() {
   const found = e.source === 'fee' ? 'Fee not booked' : e.source === 'paypal' ? 'Only in PayPal' : 'Only in the books';
   let html = `<div class="v-head"><span class="v-label">Journal voucher</span><span class="v-id">${esc(e.id)}</span></div>`;
   html += `<h3 class="v-title">${esc(e.fix ? state.config.categories[e.fix.category] ?? e.fix.category : found)}</h3>`;
-  html += `<div class="v-meta">${statusChip(e)}${e.fix ? (e.fix.by === 'claude' ? badge('claude', 'Claude') : badge('rule', 'Rule')) : ''}<span>gap <span class="v-gap ${e.gap < 0 ? 'neg' : ''}">${fmt(e.gap)}</span></span></div>`;
+  html += `<div class="v-meta">${statusChip(e)}${e.fix ? (e.fix.by === 'claude' ? badge('claude', 'AI') : badge('rule', 'Rule')) : ''}<span>gap <span class="v-gap ${e.gap < 0 ? 'neg' : ''}">${fmt(e.gap)}</span></span></div>`;
   html += `<div class="v-sec"><span class="v-label">Supporting items</span>${e.paypal.map((id) => doc('p', id)).join('')}${e.ledger.map((id) => doc('l', id)).join('')}</div>`;
   if (e.hints?.length) html += `<div class="v-sec">${e.hints.map((h) => `<div class="hint-box"><b>Found by code${h.kind === 'transposition' ? ' · possible transposition' : ''}</b><span>${esc(h.detail)} (see <code>${esc(h.with)}</code>)</span></div>`).join('')}</div>`;
   if (e.fix) {
@@ -246,24 +246,24 @@ function drawDetail() {
     const lines = [...f.lines.filter((l) => l.debit), ...f.lines.filter((l) => !l.debit)];
     const dr = f.lines.reduce((a, l) => a + (l.debit || 0), 0), cr = f.lines.reduce((a, l) => a + (l.credit || 0), 0);
     html += `<div class="v-sec"><span class="v-label">Entry</span><table class="entry"><thead><tr><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr></thead><tbody>${lines.map((l) => `<tr class="${l.debit ? 'dr' : 'cr'}"><td><span class="acct">${esc(l.account)}</span>${esc(state.chart[l.account] ?? 'not in chart')}</td><td class="n">${l.debit ? fmt(l.debit) : ''}</td><td class="n">${l.credit ? fmt(l.credit) : ''}</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td class="n"><span>${fmt(dr)}</span></td><td class="n"><span>${fmt(cr)}</span></td></tr></tfoot></table><div class="memo">Memo: ${esc(f.memo)}</div></div>`;
-    if (f.explanation) html += `<div class="v-sec"><span class="v-label">${f.by === 'claude' ? `Why · Claude (${esc(f.model ?? '')})` : 'Why · rule'}</span><div class="note ${f.by === 'claude' ? '' : 'rule'}">${esc(f.explanation)}</div></div>`;
+    if (f.explanation) html += `<div class="v-sec"><span class="v-label">${f.by === 'claude' ? `Why · AI (${esc(f.model ?? '')})` : 'Why · rule'}</span><div class="note ${f.by === 'claude' ? '' : 'rule'}">${esc(f.explanation)}</div></div>`;
     const extra = [...f.cites.paypal.filter((id) => !e.paypal.includes(id)).map((id) => doc('p', id)), ...f.cites.ledger.filter((id) => !e.ledger.includes(id)).map((id) => doc('l', id))];
     if (extra.length) html += `<div class="v-sec"><span class="v-label">Also settles</span>${extra.join('')}</div>`;
     html += `<div class="v-sec"><span class="v-label">Checks · ${e.check.ok ? 'all nine pass' : `${e.check.failures.length} failing`}</span><ul class="checks">`;
     html += e.check.ok ? CHECKS.map((t) => `<li><span class="tk">✓</span><span>${t}</span></li>`).join('')
       : e.check.failures.map((x) => `<li class="fail"><span class="tk x">✗</span><span><span class="rule-name">${esc(x.rule)}</span>${esc(x.detail)}</span></li>`).join('');
     html += '</ul>';
-    if (e.firstFailures) html += `<div class="first">Claude's first attempt failed (${e.firstFailures.map((x) => esc(x.rule)).join(', ')}) and was corrected.</div>`;
+    if (e.firstFailures) html += `<div class="first">The AI's first attempt failed (${e.firstFailures.map((x) => esc(x.rule)).join(', ')}) and was corrected.</div>`;
     html += '</div>';
     if (e.status === 'open') {
-      html += `<div class="decide"><div class="row"><button class="btn btn-ink" id="approve" ${e.check.ok ? '' : 'disabled'}>Approve entry</button><button class="btn btn-red" id="reject">Reject</button></div><textarea id="reason" rows="2" placeholder="Reason for rejecting. Claude reads it next time it proposes."></textarea></div>`;
+      html += `<div class="decide"><div class="row"><button class="btn btn-ink" id="approve" ${e.check.ok ? '' : 'disabled'}>Approve entry</button><button class="btn btn-red" id="reject">Reject</button></div><textarea id="reason" rows="2" placeholder="Reason for rejecting. The AI reads it next time it proposes."></textarea></div>`;
     } else if (e.status === 'approved') {
       html += `<div class="approved-stamp"><span class="stamp">Approved</span><span class="when">${esc(e.approvedBy ?? 'reviewer')} · ${esc((e.approvedAt ?? '').replace('T', ' ').slice(0, 16))} UTC</span></div>`;
     }
   } else if (e.status === 'covered') {
     html += `<div class="approved-stamp"><span class="stamp">Settled</span><span class="when">by the entry on ${esc(e.coveredBy)}</span></div>`;
   } else if (e.status === 'open') {
-    html += `<div class="decide"><div class="row"><button class="btn btn-ink" id="proposeOne">${e.source === 'fee' ? 'Propose the fee entry' : 'Ask Claude for an entry'}</button></div></div>`;
+    html += `<div class="decide"><div class="row"><button class="btn btn-ink" id="proposeOne">${e.source === 'fee' ? 'Propose the fee entry' : 'Ask AI for an entry'}</button></div></div>`;
   }
   if (e.rejected?.length) html += `<div class="v-sec rejected"><span class="v-label">Rejected before</span>${e.rejected.map((r) => `<div>"${esc(r.fix.memo)}"${r.reason ? `: ${esc(r.reason)}` : ''}</div>`).join('')}</div>`;
   el.innerHTML = html;
@@ -295,13 +295,13 @@ $('proposeAll').addEventListener('click', async () => {
   let n = 0;
   if (state.config.claude) {
     for (let next = todo()[0]; next; next = todo()[0]) {
-      n++; setStatus(`Claude is proposing ${n} of ~${n + todo().length - 1}…`);
+      n++; setStatus(`AI is proposing ${n} of ~${n + todo().length - 1}…`);
       tried.add(next.id);
       const ok = await proposeOne(next.id);
       if (!ok) break;
     }
     setStatus('Proposals done. Review each one and approve or reject.');
-  } else setStatus('Rule fixes proposed. Claude is off on this server, so the other exceptions need a manual fix.');
+  } else setStatus('Rule fixes proposed. AI is off on this server, so the other exceptions need a manual fix.');
   busy = false; render();
 });
 
