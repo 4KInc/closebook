@@ -18,7 +18,8 @@ that balances but moves the wrong account, leaves the books wrong while looking 
 
 ## What it does
 
-1. **Reads PayPal** for the month (three read-only APIs, below).
+1. **Reads PayPal** for the month (three read-only APIs, below), and the books: any CSV with a date
+   and an amount, or a QuickBooks Online General Ledger / Transaction Detail by Account export as it is.
 2. **Rules match** what can be matched (by reference, or by amount and date when only one pairing
    fits) and write the fee entry for a sale booked at gross.
 3. **Claude proposes** one journal entry for every other exception: a category, the PayPal
@@ -68,9 +69,10 @@ arithmetic; a person signs off on what only a person can judge.
 - Claude with structured outputs, a check-and-retry loop, server-side refusal fallbacks, and a
   recorded-proposal fallback when live calls are unavailable (no key, a cap, a failed call),
   labelled on screen and checked live.
-- **55 tests** with no keys needed, including property tests over thousands of generated entries
+- **59 tests** with no keys needed, including property tests over thousands of generated entries
   and months, the server driven over HTTP, and a fake Claude endpoint for failure paths.
-- Measured, not just demoed: an eval harness grades Claude against answer keys (below).
+- Measured, not just demoed: an eval harness grades Claude against answer keys, including ten
+  hard months built to make it fail, and lists every failure (below).
 
 ### Design
 - Written for the people who close the month: small-business owners and their bookkeepers. The
@@ -165,7 +167,28 @@ The generated months are still ours: the same people wrote the generator, the an
 prompt, so a perfect score says the mistakes we know how to plant are ones the model handles, not
 that every real month will go as well. That is why the checks and the reviewer stay.
 
-The demo month and the generated months are ours: these are measurements of closebook on months
+**Ten hard months**, built to make it fail (seeds 201–210: same-amount sales told apart only by name
+or only by date, a partial refund with part of the fee returned, a currency conversion with a
+spread, a wrong-sign transfer, a transposed transfer booked a week late with no code hint, a
+dispute's hold, release and chargeback, and decoy notes that look like instructions), 202 items,
+11 November 2026, one run per model:
+
+| | `claude-opus-5-5` | `claude-sonnet-5-5` |
+|---|---|---|
+| Category matches the answer key | **201/202** | **192/202** |
+| Entry passed every check | 202/202 | 202/202 |
+| Same-amount pairs told apart only by date | 40/40 | 34/40 |
+| Decoy notes: right category / falsely flagged by code | 20/20 / 20/20 | 20/20 / 20/20 |
+| Cost per proposal (list price) | $0.0336 | $0.0185 |
+
+**Where it fails:** every miss passed all nine checks, so only the reviewer catches it. Opus 5.5's one
+miss called a late, transposed transfer *not booked* instead of *keyed wrong*, in a month where two
+problem book lines shared a date and it declined to guess. Sonnet 5.5's ten were mostly the
+same-buyer, same-amount pair (6), plus one name pair, the same two transfers, and a hold release
+called a chargeback. Code's flag fired on all 20 decoy notes: a false alarm, never a block.
+Details: https://github.com/4KInc/closebook#how-accurate-is-the-ai
+
+The demo month, the generated months and the hard months are ours: these are measurements of closebook on months
 with known answers, not general accuracy figures. Raw results:
 https://github.com/4KInc/closebook/tree/main/eval
 
@@ -210,6 +233,7 @@ https://github.com/4KInc/closebook#run-it
 ## Built with
 
 Node 24 (no framework, two dependencies) · PayPal Transaction Search, Balances and Disputes APIs ·
+QuickBooks Online CSV import ·
 PayPal Server SDK (APIMatic) · Anthropic SDK, Claude Opus 5.5, structured outputs · AG Grid
 Community · Render
 

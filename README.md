@@ -53,12 +53,13 @@ approve it**, and the person can correct it in place.
 
 > Built for the PayPal AI Hackathon. closebook only **reads** PayPal; it never moves money.
 
-**State (11 November 2026):** 55 tests, no keys needed, including property tests over thousands of
+**State (11 November 2026):** 59 tests, no keys needed, including property tests over thousands of
 generated entries and months, the server driven over HTTP, and a fake Claude endpoint for failure
 paths. The demo month opens with a difference of **−$897.44**; rule fixes bring it to −$825.15,
 and a correct entry for each remaining exception brings it to **$0.00** (tested). Claude matched
-the answer key on 80/80 demo proposals and 72/72 on ten generated months, followed 0 of 10
-planted injections, and every one of its entries passed the checks
+the answer key on 80/80 demo proposals, 72/72 on ten generated months and 201/202 on ten hard
+months built to make it fail, followed 0 of 10 planted injections, and every one of its entries
+passed the checks (the one hard miss is a judgement only the reviewer catches)
 ([measurements](#how-accurate-is-the-ai)). closebook closes a real PayPal sandbox month, read
 live, to $0.00 ([below](#closed-against-a-real-paypal-sandbox-account)).
 
@@ -369,7 +370,12 @@ sales, so the date-and-amount rule refuses to pick and leaves them for review.
      and chargeback (a REST call with the app's own token; the Server SDK has no disputes
      controller). The reason, status, stage and outcome go into the fix panel and Claude's prompt.
 2. **Read the books.** A CSV of the PayPal clearing account: `date, amount` and optionally
-   `id, memo, ref`, where amount is the signed change to PayPal clearing.
+   `id, memo, ref`, where amount is the signed change to PayPal clearing. A QuickBooks Online
+   *General Ledger* or *Transaction Detail by Account* export works as it is (`src/qbo.mjs`):
+   closebook finds the header under the title rows, keeps the PayPal account's rows (by the Account
+   column or the section heading), reads MM/DD/YYYY dates, and takes Num as the reference. A
+   fabricated sample is in [`samples/`](samples/quickbooks-online-general-ledger-SAMPLE.csv);
+   uploaded against the sandbox's November it closes exactly like the four-line books.
 3. **Match by rule.** First by reference: the book line's `ref` equals the PayPal transaction ID,
    invoice ID or custom field, and the amount equals gross or net. Then by amount and date: the
    amount equals gross or net, the dates are at most 3 days apart, and the pairing is the only
@@ -504,7 +510,7 @@ Node 24.
 
 ```sh
 npm install
-npm test                               # 55 tests
+npm test                               # 59 tests
 npm start                              # http://localhost:8080, the demo month with rule fixes only
 ANTHROPIC_API_KEY=... npm start        # with Claude's proposals
 ```
@@ -555,10 +561,12 @@ node scripts/record.mjs --from eval/results-demo-....json                  # mak
 | `src/untrusted.mjs` | flags text addressed to the AI, and fences untrusted fields in the prompt |
 | `src/recorded.mjs` | recorded Claude proposals, served when live calls are unavailable |
 | `src/memo.mjs` | the month-end summary, and the check that keeps the AI's narrative to the summary's numbers |
-| `src/generate.mjs` | seeded months with answer keys, for measuring the AI beyond the demo month |
+| `src/generate.mjs` | seeded months with answer keys, ordinary and hard, for measuring the AI beyond the demo month |
+| `src/qbo.mjs` | reads a QuickBooks Online General Ledger or Transaction Detail by Account export as the books |
 | `src/money.mjs` | parsing and formatting money without floating point |
 | `src/demo.mjs` | the demo month, with an answer key of what was planted, its balances and its dispute |
 | `samples/sandbox-2026-11-books.csv` | the books for the live sandbox month on the home page |
+| `samples/quickbooks-online-general-ledger-SAMPLE.csv` | a fabricated QuickBooks Online export, labelled as a sample |
 | `scripts/eval.mjs` | grades Claude's proposals against a month's answer key: category, checks, account, pairing, injections, latency, cost |
 | `scripts/record.mjs` | turns one eval run (or a live sandbox run) into the recording the server falls back on |
 | `eval/` | seeds, recordings, and every measurement's raw results and summary |
@@ -574,6 +582,7 @@ node scripts/record.mjs --from eval/results-demo-....json                  # mak
 | `test/untrusted.test.mjs` | flags, the fenced data block in the prompt, the planted injections |
 | `test/fallback.test.mjs` | recorded proposals with no key, a cap reached, a live failure mid-close, no recording |
 | `test/memo.test.mjs` | the month-end summary's numbers, and the narrative kept or dropped |
+| `test/qbo.test.mjs` | QuickBooks Online exports: both reports, the PayPal account picked out, clear errors |
 
 ## Built with
 
