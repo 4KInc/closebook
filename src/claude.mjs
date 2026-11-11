@@ -140,3 +140,25 @@ export async function proposeWithClaude(close, ex, { client = new Anthropic() } 
   const last = attempts.at(-1);
   return { fix: last.fix, check: last.check, attempts };
 }
+
+// A short narrative for the close memo, written only from the summary code built. The memo keeps
+// it only if every number and ID in it is one of the summary's (src/memo.mjs checkNarrative).
+export async function narrateClose(d, { client = new Anthropic() } = {}) {
+  const lines = [
+    `Month: ${d.period}. Source: ${d.source}.`,
+    `Difference before the close: ${fmt(d.tieout.before)}. Net effect of approved entries on PayPal clearing: ${fmt(d.tieout.adjustments)}. Difference after: ${fmt(d.tieout.after)}.`,
+    d.balance ? `PayPal's own balance moved ${fmt(d.balance.moved)}, and the transactions read net to ${fmt(d.balance.activity)} (${d.balance.gap === 0 ? 'every transaction accounted for' : `${fmt(d.balance.gap)} not accounted for`}).` : 'No PayPal balance was read.',
+    `Approved entries by category: ${d.categories.map((c) => `${CATEGORIES[c.category]?.label ?? c.category}: ${c.entries} entries moving clearing ${fmt(c.moved)}`).join('; ') || 'none'}.`,
+    `Counts: ${d.counts.exceptions} exceptions, ${d.counts.byRule} approved from rules, ${d.counts.byClaude} approved from live AI proposals, ${d.counts.recorded} from recorded AI proposals, ${d.counts.corrected} corrected by the reviewer, ${d.counts.rejected} rejected, ${d.counts.open} still open.`,
+    d.flags.length ? `Untrusted text addressed to the AI was found on ${d.flags.map((f) => f.exception).join(', ')}.` : 'No untrusted text addressed to the AI was found.',
+  ];
+  const res = await client.beta.messages.create({
+    model: MODEL, max_tokens: 4000,
+    betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+    output_config: { effort: 'low' },
+    system: 'You write the opening paragraph of a month-end close memo for a controller. Three or four plain sentences: where the close ended, what moved it, and anything the controller should look at. Use only facts and numbers from the summary, written exactly as they appear there (for example -$897.44). Do not write any other number, date, account or ID. No headings, no lists.',
+    messages: [{ role: 'user', content: lines.join('\n') }],
+  });
+  if (res.stop_reason === 'refusal') throw new Error('Claude declined to write the narrative');
+  return res.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+}

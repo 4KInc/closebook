@@ -14,7 +14,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { demoMonth } from './src/demo.mjs';
 import { paypalRows, ledgerRows, balanceRow, disputeRows } from './src/normalize.mjs';
 import { openClose, disputedIds, ruleFix, propose, approve, reject, edit, summary, journal } from './src/close.mjs';
-import { proposeWithClaude, MODEL } from './src/claude.mjs';
+import { proposeWithClaude, narrateClose, MODEL } from './src/claude.mjs';
+import { memoData, memoHtml, checkNarrative } from './src/memo.mjs';
 import { fetchMonth, fetchBalances, fetchDisputes, paypalConfigured, probe, PayPalError } from './src/paypal.mjs';
 import { CATEGORIES } from './src/codes.mjs';
 import { loadRecording, recordedFix } from './src/recorded.mjs';
@@ -219,6 +220,31 @@ async function route(req, res) {
   if (req.method === 'GET' && p === '/api/audit.csv') {
     res.writeHead(200, { 'content-type': 'text/csv', 'content-disposition': `attachment; filename="closebook-${c.period}-audit.csv"` });
     return res.end(auditCsv(c));
+  }
+
+  // The close memo: code-built numbers, plus a narrative from the AI only if every number and ID in
+  // it is one of them. One AI call per state of the close, counted against the same limits.
+  if (req.method === 'GET' && p === '/api/memo.html') {
+    const d = memoData(c, s.source);
+    const sig = JSON.stringify([d.tieout, d.counts]);
+    let narrative = null, note = null;
+    if (c.memoNarrative?.sig === sig) ({ narrative, note } = c.memoNarrative);
+    else {
+      const unavailable = !claudeReady() ? 'no API key on this server' : s.claudeCalls >= claudeLimit() ? 'this session has used its live AI calls' : !takeDailyCall() ? 'this server has used its live AI calls for today' : null;
+      if (unavailable) note = `No narrative: live AI is unavailable (${unavailable}). Every number below is from code.`;
+      else {
+        s.claudeCalls++;
+        try {
+          const text = await narrateClose(d);
+          const verdict = checkNarrative(text, d);
+          if (verdict.ok) narrative = text;
+          else note = `The AI's narrative was left out because it mentioned ${verdict.problems.slice(0, 3).join(', ')}, which ${verdict.problems.length > 1 ? 'are' : 'is'} not in this summary. Every number below is from code.`;
+        } catch (e) { note = `No narrative: the AI call failed (${e.status ?? e.message}). Every number below is from code.`; }
+      }
+      c.memoNarrative = { sig, narrative, note };
+    }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    return res.end(memoHtml(d, { narrative, note }));
   }
 
   if (req.method === 'POST' && p === '/api/rules') {
