@@ -56,16 +56,18 @@ function render() {
   }
   $('start').hidden = true; $('app').hidden = false;
   const s = state.summary;
-  $('source').textContent = `${state.source.label} · Claude: ${state.config.claude ? state.config.model : 'off (rules only)'}`;
+  $('source').innerHTML = [state.source.label, `${state.currency ?? 'USD'} · PayPal clearing 1010`, state.config.claude ? `Proposals: ${state.config.model}` : 'Claude off: rules only'].map((t) => `<span>${esc(t)}</span>`).join('');
   $('tPaypal').textContent = fmt(s.paypalNet);
   $('tBooks').textContent = fmt(s.books);
   countTo($('tDiff'), s.difference);
-  $('tDiffTile').className = `tile diff ${s.difference === 0 ? 'good' : 'bad'}`;
-  const ready = state.exceptions.filter((e) => e.status === 'open' && e.check?.ok).length;
-  const done = s.approved + s.covered;
-  $('barDone').style.width = `${(100 * done) / Math.max(1, s.exceptions)}%`;
-  $('barReady').style.width = `${(100 * ready) / Math.max(1, s.exceptions)}%`;
-  $('counts').textContent = `${s.matched} matched by rules · ${s.exceptions} exceptions: ${done} resolved, ${ready} ready to approve, ${s.open - ready} still open`;
+  $('tDiffTile').className = `fig diff ${s.difference === 0 ? 'good' : 'bad'}`;
+  // One tick per exception, in the order a reviewer works through them.
+  const kindOf = (e) => (e.status !== 'open' ? 'done' : e.pending ? 'pending' : e.fix ? (e.check.ok ? 'ready' : 'fail') : 'open');
+  const order = { done: 0, ready: 1, fail: 2, pending: 3, open: 4 };
+  const kinds = state.exceptions.map(kindOf).sort((a, b) => order[a] - order[b]);
+  $('ticks').innerHTML = kinds.map((k) => `<span class="tick ${k}"></span>`).join('');
+  const n = (k) => kinds.filter((x) => x === k).length;
+  $('counts').innerHTML = `<span><b>${s.matched}</b> matched by rule</span><span class="k-done"><i></i><b>${n('done')}</b> settled</span><span class="k-ready"><i></i><b>${n('ready')}</b> ready to approve</span>${n('fail') ? `<span class="k-fail"><i></i><b>${n('fail')}</b> failing checks</span>` : ''}<span><i></i><b>${n('open') + n('pending')}</b> open</span>`;
   $('nEx').textContent = s.open; $('nMatched').textContent = s.matched; $('nPaypal').textContent = state.paypal.length; $('nBooks').textContent = state.ledger.length;
   $('nJournal').textContent = s.approved;
   $('proposeAll').disabled = busy || !state.exceptions.some((e) => e.status === 'open' && !e.fix);
@@ -79,8 +81,8 @@ const statusChip = (e) => {
   if (e.status === 'approved') return badge('good', 'Approved');
   if (e.status === 'covered') return badge('good', 'Settled', `settled by ${e.coveredBy}`);
   if (e.pending) return badge('info pulse', 'Claude…');
-  if (!e.fix) return badge('', 'Exception');
-  return e.check.ok ? badge('info', 'Ready') : badge('bad', 'Fails checks');
+  if (!e.fix) return badge('plain', 'Exception');
+  return e.check.ok ? badge('ready', 'Ready') : badge('bad', 'Fails checks');
 };
 const byBadge = (e) => (!e.fix ? '' : e.fix.by === 'claude' ? badge('claude', 'Claude') : badge('rule', 'Rule'));
 
@@ -147,11 +149,20 @@ function columnsAndRows() {
   return { rows, cols: [textCol('entry', 'Entry', { width: 96, cellClass: 'mono' }), textCol('account', 'Account', { width: 200 }), moneyCol('debit', 'Debit'), moneyCol('credit', 'Credit'), textCol('memo', 'Memo', { flex: 1, tooltipField: 'memo' }), { field: 'by', headerName: 'By', width: 92, cellRenderer: (p) => (p.node.rowPinned ? '' : p.value === 'Claude' ? badge('claude', 'Claude') : badge('rule', 'Rule')), filter: 'agTextColumnFilter' }, textCol('exception', 'Exception', { width: 210, cellClass: 'mono' })] };
 }
 
+// The grid takes its colours from the page's tokens, so it is green-bar paper in both themes.
 function theme() {
-  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const base = agGrid.themeQuartz.withParams({ fontSize: 13, rowHeight: 34, headerHeight: 36, spacing: 6, headerFontWeight: 600, wrapperBorderRadius: 10, accentColor: dark ? '#3fb393' : '#146c5b' });
-  return dark && agGrid.colorSchemeDark ? base.withPart(agGrid.colorSchemeDark) : base;
+  const css = getComputedStyle(document.documentElement);
+  const t = (name) => css.getPropertyValue(name).trim();
+  return agGrid.themeQuartz.withParams({
+    backgroundColor: t('--sheet'), foregroundColor: t('--ink'), textColor: t('--ink'),
+    oddRowBackgroundColor: t('--bar'), headerBackgroundColor: t('--sheet'), headerTextColor: t('--ink-2'),
+    borderColor: t('--rule'), accentColor: t('--ledger'), chromeBackgroundColor: t('--sheet'),
+    fontFamily: t('--sans'), headerFontFamily: t('--mono'), headerFontSize: 10.5, headerFontWeight: 600,
+    fontSize: 13, rowHeight: 32, headerHeight: 34, spacing: 6, wrapperBorder: false, wrapperBorderRadius: 0,
+    rowBorder: false, columnBorder: false, headerColumnBorder: false,
+  });
 }
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (grid) grid.setGridOption('theme', theme()); });
 
 // A pinned bottom row with the totals of every money column over the rows that pass the filters,
 // so the tie-out can be checked in the grid itself (on the journal: debits equal credits).
@@ -198,39 +209,54 @@ function drawGrid() {
   pinTotals(grid);
 }
 
+const CHECKS = ['The exception is still open', 'The category is one of the twelve', 'Cites its own items, and only open ones', 'Every account is in the chart', 'Each line is one whole-cent debit or credit', 'Debits equal credits', 'Moves PayPal clearing by exactly the gap', 'Category fits the cited PayPal event codes', 'No foreign-currency item without a conversion'];
+
 function drawDetail() {
   const el = $('detail');
   const e = state.exceptions.find((x) => x.id === selected);
-  if (!e || tab !== 'exceptions') { el.innerHTML = '<p class="muted">Select an exception to see the proposed entry, what it cites, and the checks.</p>'; return; }
+  if (!e || tab !== 'exceptions') {
+    el.innerHTML = tab === 'exceptions'
+      ? `<div class="v-empty"><span class="v-label">Journal voucher</span><h3>Pick an exception</h3><p>Each row is a line where PayPal and the books disagree. Select one to see:</p><ul><li>the PayPal transactions and book lines behind it</li><li>the entry proposed to settle it, and why</li><li>the nine checks it has to pass</li></ul></div>`
+      : `<div class="v-empty"><span class="v-label">${esc({ matched: 'Matched lines', paypal: 'PayPal activity', books: 'Books', journal: 'Journal' }[tab])}</span><h3>${esc({ matched: 'Paired by rule', paypal: 'What PayPal did', books: 'What the books say', journal: 'Approved entries' }[tab])}</h3><p>${esc({ matched: 'Each book line here was paired with one PayPal transaction, by reference or by an amount and date only one candidate fits.', paypal: 'Every balance-affecting transaction from Transaction Search, with its event code, gross, fee and net.', books: 'The PayPal clearing account as uploaded: each line is the signed change to account 1010.', journal: 'Every approved entry, one row per debit or credit. The totals row shows debits equal credits.' }[tab])}</p><p>The totals row at the bottom follows your filters.</p></div>`;
+    return;
+  }
   const byP = new Map(state.paypal.map((t) => [t.id, t]));
   const byL = new Map(state.ledger.map((l) => [l.id, l]));
-  const item = (kind, id) => {
-    if (kind === 'p') { const t = byP.get(id); return `<div><code>${esc(id)}</code> ${esc(t.date)} ${esc(t.code)} ${esc(t.subject ?? '')}<br><span class="muted">gross ${fmt(t.gross)} · fee ${fmt(t.fee)} · net ${fmt(t.net)}${t.ref ? ` · refers to ${esc(t.ref)}` : ''}</span></div>`; }
-    const l = byL.get(id); return `<div><code>${esc(id)}</code> ${esc(l.date)} ${esc(l.memo)} <span class="money">${fmt(l.amount)}</span></div>`;
+  const doc = (kind, id) => {
+    if (kind === 'p') { const t = byP.get(id); return `<div class="doc"><span class="src">PayPal</span><span class="what">${esc(t.code)} · ${esc(t.subject ?? t.kind)}</span><span class="amt ${t.net < 0 ? 'neg' : ''}">${fmt(t.net)}</span><span class="sub">${esc(t.date)} · ${esc(id)} · gross ${fmt(t.gross)}, fee ${fmt(t.fee)}${t.ref ? ` · refers to ${esc(t.ref)}` : ''}</span></div>`; }
+    const l = byL.get(id); return `<div class="doc"><span class="src">Books</span><span class="what">${esc(l.memo || '(no memo)')}</span><span class="amt ${l.amount < 0 ? 'neg' : ''}">${fmt(l.amount)}</span><span class="sub">${esc(l.date)} · line ${esc(id)}${l.ref ? ` · ref ${esc(l.ref)}` : ''}</span></div>`;
   };
-  let html = `<h3>${esc(e.id)}</h3><div class="sub">${statusChip(e)} · gap <b class="money">${fmt(e.gap)}</b></div>`;
-  html += `<div class="items">${e.paypal.map((id) => item('p', id)).join('')}${e.ledger.map((id) => item('l', id)).join('')}</div>`;
-  if (e.hints?.length) html += e.hints.map((h) => `<div class="hint">${badge('warn', 'Found by code')} ${h.kind === 'transposition' ? 'Possible transposition' : esc(h.kind)} with <code>${esc(h.with)}</code>: ${esc(h.detail)}</div>`).join('');
+  const found = e.source === 'fee' ? 'Fee not booked' : e.source === 'paypal' ? 'Only in PayPal' : 'Only in the books';
+  let html = `<div class="v-head"><span class="v-label">Journal voucher</span><span class="v-id">${esc(e.id)}</span></div>`;
+  html += `<h3 class="v-title">${esc(e.fix ? state.config.categories[e.fix.category] ?? e.fix.category : found)}</h3>`;
+  html += `<div class="v-meta">${statusChip(e)}${e.fix ? (e.fix.by === 'claude' ? badge('claude', 'Claude') : badge('rule', 'Rule')) : ''}<span>gap <span class="v-gap ${e.gap < 0 ? 'neg' : ''}">${fmt(e.gap)}</span></span></div>`;
+  html += `<div class="v-sec"><span class="v-label">Supporting items</span>${e.paypal.map((id) => doc('p', id)).join('')}${e.ledger.map((id) => doc('l', id)).join('')}</div>`;
+  if (e.hints?.length) html += `<div class="v-sec">${e.hints.map((h) => `<div class="hint-box"><b>Found by code${h.kind === 'transposition' ? ' · possible transposition' : ''}</b><span>${esc(h.detail)} (see <code>${esc(h.with)}</code>)</span></div>`).join('')}</div>`;
   if (e.fix) {
     const f = e.fix;
-    html += `<h3 style="margin-top:14px">${esc(state.config.categories[f.category] ?? f.category)}</h3><div class="sub">proposed by ${f.by === 'claude' ? `Claude (${esc(f.model ?? '')})` : 'a rule'}${e.attempts > 1 ? ' · corrected after failing its first checks' : ''}</div>`;
-    html += `<table><tr><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr>${f.lines.map((l) => `<tr><td>${esc(l.account)} ${esc(state.chart[l.account] ?? '?')}</td><td class="n">${l.debit ? fmt(l.debit) : ''}</td><td class="n">${l.credit ? fmt(l.credit) : ''}</td></tr>`).join('')}</table>`;
-    html += `<div class="muted" style="font-size:13px">Memo: ${esc(f.memo)}</div>`;
-    if (f.explanation) html += `<div class="why">${esc(f.explanation)}</div>`;
-    const extra = [...f.cites.paypal.filter((id) => !e.paypal.includes(id)).map((id) => item('p', id)), ...f.cites.ledger.filter((id) => !e.ledger.includes(id)).map((id) => item('l', id))];
-    if (extra.length) html += `<div class="muted" style="margin-top:8px">Also settles:</div><div class="items">${extra.join('')}</div>`;
-    html += '<div class="muted" style="margin-top:10px">Checks</div><ul class="checks">';
-    if (e.check.ok) html += ['The exception is still open', 'The category is a known one', 'Cites its own items, and only open ones', 'Every line uses an account in the chart', 'Each line is one positive whole-cent debit or credit', 'Debits equal credits', 'Moves PayPal clearing by exactly the gap', 'Category fits the cited PayPal event codes', 'No foreign-currency item without a conversion'].map((t) => `<li><span class="chip good">pass</span> ${t}</li>`).join('');
-    else html += e.check.failures.map((x) => `<li><span class="chip bad">${esc(x.rule)}</span> ${esc(x.detail)}</li>`).join('');
+    const lines = [...f.lines.filter((l) => l.debit), ...f.lines.filter((l) => !l.debit)];
+    const dr = f.lines.reduce((a, l) => a + (l.debit || 0), 0), cr = f.lines.reduce((a, l) => a + (l.credit || 0), 0);
+    html += `<div class="v-sec"><span class="v-label">Entry</span><table class="entry"><thead><tr><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr></thead><tbody>${lines.map((l) => `<tr class="${l.debit ? 'dr' : 'cr'}"><td><span class="acct">${esc(l.account)}</span>${esc(state.chart[l.account] ?? 'not in chart')}</td><td class="n">${l.debit ? fmt(l.debit) : ''}</td><td class="n">${l.credit ? fmt(l.credit) : ''}</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td class="n"><span>${fmt(dr)}</span></td><td class="n"><span>${fmt(cr)}</span></td></tr></tfoot></table><div class="memo">Memo: ${esc(f.memo)}</div></div>`;
+    if (f.explanation) html += `<div class="v-sec"><span class="v-label">${f.by === 'claude' ? `Why · Claude (${esc(f.model ?? '')})` : 'Why · rule'}</span><div class="note ${f.by === 'claude' ? '' : 'rule'}">${esc(f.explanation)}</div></div>`;
+    const extra = [...f.cites.paypal.filter((id) => !e.paypal.includes(id)).map((id) => doc('p', id)), ...f.cites.ledger.filter((id) => !e.ledger.includes(id)).map((id) => doc('l', id))];
+    if (extra.length) html += `<div class="v-sec"><span class="v-label">Also settles</span>${extra.join('')}</div>`;
+    html += `<div class="v-sec"><span class="v-label">Checks · ${e.check.ok ? 'all nine pass' : `${e.check.failures.length} failing`}</span><ul class="checks">`;
+    html += e.check.ok ? CHECKS.map((t) => `<li><span class="tk">✓</span><span>${t}</span></li>`).join('')
+      : e.check.failures.map((x) => `<li class="fail"><span class="tk x">✗</span><span><span class="rule-name">${esc(x.rule)}</span>${esc(x.detail)}</span></li>`).join('');
     html += '</ul>';
-    if (e.firstFailures) html += `<div class="muted" style="font-size:12.5px">First attempt failed: ${e.firstFailures.map((x) => esc(x.detail)).join('; ')}</div>`;
+    if (e.firstFailures) html += `<div class="first">Claude's first attempt failed (${e.firstFailures.map((x) => esc(x.rule)).join(', ')}) and was corrected.</div>`;
+    html += '</div>';
     if (e.status === 'open') {
-      html += `<div class="btns"><button class="primary" id="approve" ${e.check.ok ? '' : 'disabled'}>Approve entry</button><button id="reject">Reject</button></div><textarea id="reason" rows="2" placeholder="Why reject? Claude reads this next time it proposes."></textarea>`;
+      html += `<div class="decide"><div class="row"><button class="btn btn-ink" id="approve" ${e.check.ok ? '' : 'disabled'}>Approve entry</button><button class="btn btn-red" id="reject">Reject</button></div><textarea id="reason" rows="2" placeholder="Reason for rejecting. Claude reads it next time it proposes."></textarea></div>`;
+    } else if (e.status === 'approved') {
+      html += `<div class="approved-stamp"><span class="stamp">Approved</span><span class="when">${esc(e.approvedBy ?? 'reviewer')} · ${esc((e.approvedAt ?? '').replace('T', ' ').slice(0, 16))} UTC</span></div>`;
     }
+  } else if (e.status === 'covered') {
+    html += `<div class="approved-stamp"><span class="stamp">Settled</span><span class="when">by the entry on ${esc(e.coveredBy)}</span></div>`;
   } else if (e.status === 'open') {
-    html += `<div class="btns"><button class="primary" id="proposeOne">${e.source === 'fee' ? 'Propose rule fix' : 'Ask Claude for a fix'}</button></div>`;
+    html += `<div class="decide"><div class="row"><button class="btn btn-ink" id="proposeOne">${e.source === 'fee' ? 'Propose the fee entry' : 'Ask Claude for an entry'}</button></div></div>`;
   }
-  if (e.rejected?.length) html += `<div class="muted" style="margin-top:10px;font-size:12.5px">Rejected before: ${e.rejected.map((r) => `"${esc(r.fix.memo)}"${r.reason ? ` (${esc(r.reason)})` : ''}`).join('; ')}</div>`;
+  if (e.rejected?.length) html += `<div class="v-sec rejected"><span class="v-label">Rejected before</span>${e.rejected.map((r) => `<div>"${esc(r.fix.memo)}"${r.reason ? `: ${esc(r.reason)}` : ''}</div>`).join('')}</div>`;
   el.innerHTML = html;
   $('approve')?.addEventListener('click', () => act(`/api/exceptions/${encodeURIComponent(e.id)}/approve`, {}));
   $('reject')?.addEventListener('click', () => act(`/api/exceptions/${encodeURIComponent(e.id)}/reject`, { reason: $('reason').value }));
