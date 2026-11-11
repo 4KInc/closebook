@@ -92,19 +92,22 @@ export function edit(close, exceptionId, changes, by = 'reviewer') {
   if (!ex?.fix) throw new Error(`${exceptionId} has no proposed fix to edit`);
   if (ex.status !== 'open') throw new Error(`${exceptionId} is already ${ex.status}`);
   const before = ex.fix;
-  const original = before.original ?? { category: before.category, lines: before.lines, memo: before.memo };
+  const original = before.original ?? { category: before.category, lines: before.lines, memo: before.memo, cites: before.cites };
   const next = {
     ...before,
     category: changes.category ?? before.category,
     lines: changes.lines ?? before.lines,
     memo: changes.memo ?? before.memo,
+    cites: changes.cites ?? before.cites,
   };
-  const same = next.category === original.category && next.memo === original.memo && entryText(next.lines) === entryText(original.lines);
+  const citeText = (c) => [...(c?.paypal ?? []), ...(c?.ledger ?? [])].join(' ');
+  const same = next.category === original.category && next.memo === original.memo && entryText(next.lines) === entryText(original.lines) && citeText(next.cites) === citeText(original.cites ?? before.cites);
   const fix = same ? { ...next, original: undefined, editedBy: undefined, editedAt: undefined } : { ...next, original, editedBy: by, editedAt: new Date().toISOString() };
   propose(close, exceptionId, fix);
   const what = same ? `reverted to the ${before.by === 'claude' ? 'AI' : 'rule'}'s entry` : [
     original.category !== fix.category ? `category ${original.category} to ${fix.category}` : '',
     entryText(original.lines) !== entryText(fix.lines) ? `entry from ${entryText(original.lines)} to ${entryText(fix.lines)}` : '',
+    citeText(original.cites ?? fix.cites) !== citeText(fix.cites) ? `cited items from ${citeText(original.cites)} to ${citeText(fix.cites)}` : '',
   ].filter(Boolean).join('; ');
   // One audit row per exception for a run of edits: the latest replaces the one before it.
   const last = close.decisions.at(-1);

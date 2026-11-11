@@ -289,12 +289,14 @@ async function route(req, res) {
     // A refused approval (checks fail, nothing proposed, already settled) is the reviewer's to fix: 409.
     if (action === 'approve') { try { approve(c, ex.id); } catch (e) { return json(res, 409, { error: e.message }); } return json(res, 200, view(s)); }
     if (action === 'edit') {
-      const { category, lines, memo } = await body(req);
+      const { category, lines, memo, cites } = await body(req);
+      const okIds = (xs) => Array.isArray(xs) && xs.length <= 50 && xs.every((x) => typeof x === 'string' && x.length <= 64);
+      if (cites !== undefined && !(cites && okIds(cites.paypal) && okIds(cites.ledger))) return json(res, 400, { error: 'cites must be { paypal: [ids], ledger: [ids] }' });
       // Shape only; whether the entry is right is for the checks, which run inside edit().
       const okLine = (l) => l && typeof l.account === 'string' && l.account.length <= 10 && [l.debit ?? 0, l.credit ?? 0].every((v) => Number.isInteger(v) && v >= 0 && v < 1e13);
       if (lines !== undefined && (!Array.isArray(lines) || lines.length > 20 || !lines.every(okLine))) return json(res, 400, { error: 'lines must be up to 20 of { account, debit, credit } in whole cents' });
       if (category !== undefined && !(category in CATEGORIES)) return json(res, 400, { error: `unknown category ${category}` });
-      try { edit(c, ex.id, { category, lines: lines?.map((l) => ({ account: l.account, debit: l.debit ?? 0, credit: l.credit ?? 0 })), memo: memo === undefined ? undefined : String(memo).slice(0, 200) }); }
+      try { edit(c, ex.id, { category, cites: cites && { paypal: [...cites.paypal], ledger: [...cites.ledger] }, lines: lines?.map((l) => ({ account: l.account, debit: l.debit ?? 0, credit: l.credit ?? 0 })), memo: memo === undefined ? undefined : String(memo).slice(0, 200) }); }
       catch (e) { return json(res, 409, { error: e.message }); }
       return json(res, 200, view(s));
     }

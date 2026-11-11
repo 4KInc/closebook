@@ -220,6 +220,11 @@ function drawDetail() {
   $('approve')?.addEventListener('click', () => act(`/api/exceptions/${encodeURIComponent(e.id)}/approve`, {}));
   $('reject')?.addEventListener('click', () => act(`/api/exceptions/${encodeURIComponent(e.id)}/reject`, { reason: $('reason').value }));
   $('proposeOne')?.addEventListener('click', () => proposeOne(e.id));
+  $('citeOpen')?.addEventListener('click', () => {
+    const open = state.exceptions.filter((x) => x.status === 'open');
+    const openP = new Set(open.flatMap((x) => x.paypal)), openL = new Set(open.flatMap((x) => x.ledger));
+    editEntry(e.id, { cites: { paypal: e.fix.cites.paypal.filter((id) => openP.has(id)), ledger: e.fix.cites.ledger.filter((id) => openL.has(id)) } });
+  });
 }
 
 // The proposed entry as an AG Grid the reviewer can edit: account from the chart, debit or credit

@@ -244,3 +244,23 @@ test('the reviewer can correct an entry: the checks re-run, the change is audite
   assert.equal(journal(close).find((j) => j.exception === e.id).editedBy, 'reviewer');
   assert.throws(() => edit(close, e.id, { lines: [] }), /already approved/);
 });
+
+test('an entry that cites items another approval settled can be corrected to cite only what is still open', () => {
+  const { close } = demo();
+  const st = stateOf(close);
+  const exOf = (code) => close.exceptions.find((e) => e.paypal.length && st.byP.get(e.paypal[0]).code === code);
+  const hold = exOf('T1110'), release = exOf('T1111'), cb = exOf('T1201');
+  const a = -hold.gap;
+  // The hold and its release in one entry; the chargeback's entry cites all three, as Claude does.
+  propose(close, hold.id, { by: 'claude', category: 'hold_not_booked', cites: { paypal: [...hold.paypal, ...release.paypal], ledger: [] }, memo: 'hold', lines: [{ account: '1210', debit: a, credit: 0 }, { account: CLEARING, debit: 0, credit: a }, { account: CLEARING, debit: a, credit: 0 }, { account: '1210', debit: 0, credit: a }] });
+  propose(close, cb.id, { by: 'claude', category: 'reversal_not_booked', cites: { paypal: [...cb.paypal, ...hold.paypal, ...release.paypal], ledger: [] }, memo: 'chargeback', lines: [{ account: '6150', debit: -cb.gap - 2000, credit: 0 }, { account: '6100', debit: 2000, credit: 0 }, { account: CLEARING, debit: 0, credit: -cb.gap }] });
+  assert.equal(cb.check.ok, true);
+  approve(close, hold.id);
+  assert.equal(cb.check.ok, false);
+  assert.ok(cb.check.failures.every((f) => f.rule === 'cites'));
+  edit(close, cb.id, { cites: { paypal: [...cb.paypal], ledger: [] } });
+  assert.equal(cb.check.ok, true, JSON.stringify(cb.check.failures));
+  assert.match(close.decisions.at(-1).reason, /cited items from .* to /);
+  approve(close, cb.id);
+  assert.equal(close.exceptions.filter((e) => e.status === 'open').reduce((s, e) => s + e.gap, 0), summary(close).difference);
+});

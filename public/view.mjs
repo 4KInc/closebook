@@ -70,6 +70,8 @@ export function voucherHtml(state, e, tab = 'exceptions') {
     html += e.check.ok ? CHECKS.map((t) => `<li><span class="tk">✓</span><span>${t}</span></li>`).join('')
       : e.check.failures.map((x) => `<li class="fail"><span class="tk x">✗</span><span><span class="rule-name">${esc(x.rule)}</span>${esc(x.detail)}</span></li>`).join('');
     html += '</ul>';
+    // An entry that cites items another approval already settled: the reviewer can drop them.
+    if (e.status === 'open' && !e.check.ok && e.check.failures.some((x) => x.rule === 'cites' && /is not part of an open exception/.test(x.detail))) html += `<div class="decide"><button class="btn" id="citeOpen">Drop the items already settled</button><span class="meta-note">Another approved entry settled some of the items this one cites. Dropping them is a correction: the checks run again.</span></div>`;
     if (e.firstFailures) html += `<div class="first">The AI's first attempt failed (${e.firstFailures.map((x) => esc(x.rule)).join(', ')}) and was corrected.</div>`;
     html += '</div>';
     if (e.status === 'open') {
