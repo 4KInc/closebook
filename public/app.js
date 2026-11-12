@@ -218,7 +218,12 @@ function drawDetail() {
   $('cat')?.addEventListener('change', (ev) => editEntry(e.id, { category: ev.target.value }));
   $('revert')?.addEventListener('click', () => editEntry(e.id, { category: e.fix.original.category, lines: e.fix.original.lines, memo: e.fix.original.memo }));
   $('approve')?.addEventListener('click', () => act(`/api/exceptions/${encodeURIComponent(e.id)}/approve`, {}));
-  $('reject')?.addEventListener('click', () => act(`/api/exceptions/${encodeURIComponent(e.id)}/reject`, { reason: $('reason').value }));
+  // Reject asks for a reason first (optional), then rejects on the second click.
+  $('reject')?.addEventListener('click', (ev) => {
+    const r = $('reason');
+    if (r.hidden) { r.hidden = false; r.focus(); ev.currentTarget.textContent = 'Reject with this reason'; return; }
+    act(`/api/exceptions/${encodeURIComponent(e.id)}/reject`, { reason: r.value });
+  });
   $('proposeOne')?.addEventListener('click', () => proposeOne(e.id));
   $('citeOpen')?.addEventListener('click', () => {
     const open = state.exceptions.filter((x) => x.status === 'open');
@@ -356,4 +361,41 @@ $('back').addEventListener('click', () => { history.pushState(null, '', location
   $('period').value = now.toISOString().slice(0, 7);
   state = await api('/api/close');
   render();
+})();
+
+// The fix panel's width: drag the handle, or focus it and use the arrow keys; double-click resets.
+// Remembered in this browser only.
+(() => {
+  const work = document.querySelector('.work'), handle = $('resizer');
+  if (!work || !handle) return;
+  const DEFAULT = 440, MIN = 320;
+  const max = () => Math.max(MIN, Math.min(900, work.clientWidth - 380));
+  const set = (w, save) => {
+    const v = Math.round(Math.min(max(), Math.max(MIN, w)));
+    work.style.setProperty('--vw', `${v}px`);
+    handle.setAttribute('aria-valuenow', String(v));
+    if (save) { try { localStorage.setItem('closebook.panel', String(v)); } catch {} }
+  };
+  let saved = null; try { saved = Number(localStorage.getItem('closebook.panel')) || null; } catch {}
+  if (saved) set(saved, false);
+  handle.setAttribute('aria-valuemin', String(MIN));
+  handle.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault(); handle.setPointerCapture(ev.pointerId);
+    handle.classList.add('drag'); document.body.classList.add('resizing');
+    const right = work.getBoundingClientRect().right;
+    const move = (m) => set(right - m.clientX - 5, false);
+    const up = () => {
+      handle.releasePointerCapture(ev.pointerId); handle.classList.remove('drag'); document.body.classList.remove('resizing');
+      handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up);
+      set(parseFloat(getComputedStyle(work).getPropertyValue('--vw')), true);
+    };
+    handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up);
+  });
+  handle.addEventListener('keydown', (ev) => {
+    const now = parseFloat(getComputedStyle(work).getPropertyValue('--vw')) || DEFAULT;
+    if (ev.key === 'ArrowLeft') set(now + 24, true); else if (ev.key === 'ArrowRight') set(now - 24, true); else return;
+    ev.preventDefault();
+  });
+  handle.addEventListener('dblclick', () => { set(DEFAULT, true); });
+  addEventListener('resize', () => { const now = parseFloat(getComputedStyle(work).getPropertyValue('--vw')); if (now > max()) set(max(), false); });
 })();

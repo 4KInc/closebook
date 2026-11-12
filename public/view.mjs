@@ -47,13 +47,15 @@ export function itemsLabel(state, e) {
 
 export const entryText = (lines) => lines.map((l) => `${l.debit ? 'Dr' : 'Cr'} ${l.account} ${fmt(l.debit || l.credit)}`).join(', ');
 
+// Short names for the nine checks, in the order of CHECKS, keyed by the rule each failure reports.
+export const CHECK_KEYS = [['open', 'Still open'], ['category', 'Known type'], ['cites', 'Right items'], ['account', 'Real accounts'], ['line', 'Whole cents'], ['balanced', 'Balances'], ['closes_gap', 'Closes the gap'], ['category_fits', 'Matches PayPal'], ['currency', 'Currency']];
 export const CHECKS = ['The item is still open', 'The type of fix is one closebook knows', 'It includes this item, and only items still open', 'Every account is in your chart of accounts', 'Each line is a debit or a credit, in whole cents', 'Debits equal credits', 'It changes PayPal in your books by exactly the difference', 'The type of fix matches what PayPal says happened', 'No foreign-currency money without its exchange'];
 
 // The detail panel: an empty-state note, or one exception's voucher.
 export function voucherHtml(state, e, tab = 'exceptions') {
   if (!e || tab !== 'exceptions') {
     return tab === 'exceptions'
-      ? `<div class="v-empty"><span class="v-label">Fix</span><h3>Pick an item to review</h3><p>Each row is something PayPal and your books disagree on. Pick one to see:</p><ul><li>what PayPal did, and what your books say</li><li>the fix suggested for it, and why</li><li>the nine double-checks every fix must pass before you can approve it</li></ul></div>`
+      ? `<div class="v-empty"><span class="v-label">Fix</span><h3>Pick an item to review</h3><p>Each row is something PayPal and your books disagree on.</p><ol class="v-steps"><li><b>See</b> what happened</li><li><b>Check</b> the suggested fix</li><li><b>Approve</b> once all nine checks pass</li></ol></div>`
       : `<div class="v-empty"><span class="v-label">${esc({ matched: 'Matched', paypal: 'PayPal activity', books: 'Your books', journal: 'Journal entries' }[tab])}</span><h3>${esc({ matched: 'Already in agreement', paypal: 'What PayPal did', books: 'What your books say', journal: 'Approved fixes' }[tab])}</h3><p>${esc({ matched: 'Each line in your books here was matched to one PayPal payment, by its invoice or ID, or by an amount and date only one payment fits.', paypal: 'Every payment, refund, fee, hold and transfer in PayPal this month: the amount, PayPal\'s fee and what you received.', books: 'Your PayPal account in the books, as you uploaded it: money in is positive, money out is negative.', journal: 'Every fix you approved, as journal entries: one row per debit or credit. The totals row shows debits equal credits.' }[tab])}</p><p>The totals row at the bottom follows your filters.</p>${tab === 'journal' ? `<p><a class="btn btn-ink" href="/api/memo.html" target="_blank" rel="noopener">Open the month-end summary</a></p><p>One printable page for you or your accountant: the month before and after, PayPal's balance, every approved fix by type, who suggested and approved what, and anything flagged.</p>` : ''}</div>`;
   }
   const byP = new Map(state.paypal.map((t) => [t.id, t]));
@@ -63,47 +65,59 @@ export function voucherHtml(state, e, tab = 'exceptions') {
     const l = byL.get(id); return `<div class="doc"><span class="src">Books</span><span class="what">${esc(l.memo || '(no memo)')}</span><span class="amt ${l.amount < 0 ? 'neg' : ''}">${fmt(l.amount)}</span><span class="sub">${esc(day(l.date))} · line ${esc(id)}${l.ref ? ` · ref ${esc(l.ref)}` : ''}</span></div>`;
   };
   const found = e.source === 'fee' ? 'PayPal fee missing from your books' : e.source === 'paypal' ? 'In PayPal, not in your books' : 'In your books, not in PayPal';
-  let html = `<div class="v-head"><span class="v-label">Fix</span><span class="v-id">${esc(e.id)}</span></div>`;
+  // Pinned header: what this is, its status, and the amount it has to fix.
+  let html = `<header class="v-top"><div class="v-head"><span class="v-label">Fix</span><span class="v-id" title="${esc(e.id)}">${esc(e.id)}</span></div>`;
   html += `<h3 class="v-title">${esc(e.fix ? state.config.categories[e.fix.category] ?? e.fix.category : found)}</h3>`;
-  html += `<div class="v-meta">${statusChip(e)}${byBadge(e)}<span>difference <span class="v-gap ${e.gap < 0 ? 'neg' : ''}">${fmt(e.gap)}</span></span></div>`;
-  html += `<div class="v-sec"><span class="v-label">What we found</span>${e.paypal.map((id) => doc('p', id)).join('')}${e.ledger.map((id) => doc('l', id)).join('')}</div>`;
+  html += `<div class="v-meta">${statusChip(e)}${byBadge(e)}<span class="v-gapwrap">difference <span class="v-gap ${e.gap < 0 ? 'neg' : ''}">${fmt(e.gap)}</span></span></div></header>`;
+  html += `<div class="v-body">`;
+  html += `<section class="v-sec"><h4 class="v-label">What we found</h4><div class="docs">${e.paypal.map((id) => doc('p', id)).join('')}${e.ledger.map((id) => doc('l', id)).join('')}</div></section>`;
   // Text from PayPal or the books that addresses the AI: shown, quoted, never acted on.
-  if (e.flags?.length) html += `<div class="v-sec">${e.flags.map((f) => `<div class="flag-box"><b>This text tries to give the AI instructions</b><span>${esc(f.field)}: <q>${esc(f.text)}</q></span><span class="flag-why">closebook treats it as information only, and the amounts are still double-checked. Make sure the type of fix and the accounts look right to you.</span></div>`).join('')}</div>`;
-  if (e.hints?.length) html += `<div class="v-sec">${e.hints.map((h) => `<div class="hint-box"><b>${h.kind === 'transposition' ? 'Possible typo' : 'Worth a look'}</b><span>${esc(h.detail)}</span></div>`).join('')}</div>`;
+  if (e.flags?.length) html += `<section class="v-sec">${e.flags.map((f) => `<div class="flag-box"><b>This text tries to give the AI instructions</b><span>${esc(f.field)}: <q>${esc(f.text)}</q></span><span class="flag-why">Treated as information only. The amounts are still double-checked.</span></div>`).join('')}</section>`;
+  if (e.hints?.length) html += `<section class="v-sec">${e.hints.map((h) => `<div class="hint-box"><b>${h.kind === 'transposition' ? 'Possible typo' : 'Worth a look'}</b><span>${esc(h.detail)}</span></div>`).join('')}</section>`;
   if (e.fix) {
     const f = e.fix;
+    const memo = `<details class="more"><summary>Memo</summary><div class="memo">${esc(f.memo)}</div></details>`;
     if (e.status === 'open') {
       // Open: the entry is an editable grid. The checks below re-run on every change.
       const cats = Object.entries(state.config.categories).map(([k, v]) => `<option value="${esc(k)}"${k === f.category ? ' selected' : ''}>${esc(v)}</option>`).join('');
-      html += `<div class="v-sec"><span class="v-label">Journal entry · click an account or amount to change it</span><label class="cat">Type of fix<select id="cat">${cats}</select></label><div id="entryGrid" class="entry-grid"></div><div class="entry-tools"><button class="btn btn-quiet" id="addLine">+ Line</button><button class="btn btn-quiet" id="dropLine">Remove selected line</button>${f.original ? `<button class="btn btn-quiet" id="revert">Undo my changes</button>` : ''}</div><div class="memo">Memo: ${esc(f.memo)}</div>${f.original ? `<div class="edited-note">You changed this. ${f.by === 'claude' ? 'The AI suggested' : 'It was'}: ${esc(entryText(f.original.lines))}${f.original.category !== f.category ? ` (${esc(state.config.categories[f.original.category] ?? f.original.category)})` : ''}</div>` : ''}</div>`;
+      html += `<section class="v-sec"><div class="v-sec-head"><h4 class="v-label">Journal entry</h4><span class="v-tip">Click a cell to change it</span></div><select id="cat" class="cat" aria-label="Type of fix">${cats}</select><div id="entryGrid" class="entry-grid"></div><div class="entry-tools"><button class="btn btn-quiet" id="addLine">+ Line</button><button class="btn btn-quiet" id="dropLine">Remove line</button>${f.original ? `<button class="btn btn-quiet" id="revert">Undo my changes</button>` : ''}</div>${f.original ? `<div class="edited-note">You changed this. ${f.by === 'claude' ? 'The AI suggested' : 'It was'}: ${esc(entryText(f.original.lines))}${f.original.category !== f.category ? ` (${esc(state.config.categories[f.original.category] ?? f.original.category)})` : ''}</div>` : ''}${memo}</section>`;
     } else {
       const lines = [...f.lines.filter((l) => l.debit), ...f.lines.filter((l) => !l.debit)];
       const dr = f.lines.reduce((a, l) => a + (l.debit || 0), 0), cr = f.lines.reduce((a, l) => a + (l.credit || 0), 0);
-      html += `<div class="v-sec"><span class="v-label">Journal entry${f.original ? ' · changed by you' : ''}</span><table class="entry"><thead><tr><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr></thead><tbody>${lines.map((l) => `<tr class="${l.debit ? 'dr' : 'cr'}"><td><span class="acct">${esc(l.account)}</span>${esc(state.chart[l.account] ?? 'not in chart')}</td><td class="n">${l.debit ? fmt(l.debit) : ''}</td><td class="n">${l.credit ? fmt(l.credit) : ''}</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td class="n"><span>${fmt(dr)}</span></td><td class="n"><span>${fmt(cr)}</span></td></tr></tfoot></table><div class="memo">Memo: ${esc(f.memo)}</div></div>`;
+      html += `<section class="v-sec"><h4 class="v-label">Journal entry${f.original ? ' · changed by you' : ''}</h4><table class="entry"><thead><tr><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr></thead><tbody>${lines.map((l) => `<tr class="${l.debit ? 'dr' : 'cr'}"><td><span class="acct">${esc(l.account)}</span>${esc(state.chart[l.account] ?? 'not in chart')}</td><td class="n">${l.debit ? fmt(l.debit) : ''}</td><td class="n">${l.credit ? fmt(l.credit) : ''}</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td class="n"><span>${fmt(dr)}</span></td><td class="n"><span>${fmt(cr)}</span></td></tr></tfoot></table>${memo}</section>`;
     }
-    if (f.recorded) html += `<div class="v-sec"><div class="recorded-box"><b>Saved AI suggestion</b><span>The AI isn't available right now${f.recorded.why ? ` (${esc(f.recorded.why)})` : ''}, so this is the suggestion it made for this exact item on ${esc(day(f.recorded.at))}. The double-checks below ran again just now.</span></div></div>`;
-    if (f.explanation) html += `<div class="v-sec"><span class="v-label">${f.by === 'claude' ? 'Why the AI suggests this' : 'Why'}</span><div class="note ${f.by === 'claude' ? '' : 'rule'}">${esc(f.explanation)}</div></div>`;
+    if (f.recorded) html += `<section class="v-sec"><div class="recorded-box"><b>Saved AI suggestion</b><span>The AI isn't available right now${f.recorded.why ? ` (${esc(f.recorded.why)})` : ''}, so this is its suggestion for this item from ${esc(day(f.recorded.at))}. The double-checks ran again just now.</span></div></section>`;
+    if (f.explanation) {
+      // The reasoning: its first sentence, the rest one click away.
+      const parts = f.explanation.split(/(?<=[.!?])\s+(?=[A-Z(])/);
+      const lead = parts.shift();
+      html += `<section class="v-sec"><h4 class="v-label">${f.by === 'claude' ? 'Why the AI suggests this' : 'Why'}</h4><div class="note ${f.by === 'claude' ? '' : 'rule'}"><p>${esc(lead)}</p>${parts.length ? `<details class="more"><summary>Read more</summary><p>${esc(parts.join(' '))}</p></details>` : ''}</div></section>`;
+    }
     const extra = [...f.cites.paypal.filter((id) => !e.paypal.includes(id)).map((id) => doc('p', id)), ...f.cites.ledger.filter((id) => !e.ledger.includes(id)).map((id) => doc('l', id))];
-    if (extra.length) html += `<div class="v-sec"><span class="v-label">Also fixes</span>${extra.join('')}</div>`;
-    html += `<div class="v-sec"><span class="v-label">Double-checks · ${e.check.ok ? 'all nine passed' : `${e.check.failures.length} not passed yet`}</span><ul class="checks">`;
-    html += e.check.ok ? CHECKS.map((t) => `<li><span class="tk">✓</span><span>${t}</span></li>`).join('')
-      : e.check.failures.map((x) => `<li class="fail"><span class="tk x">✗</span><span><span class="rule-name">${esc(CHECK_LABEL[x.rule] ?? x.rule)}</span>${esc(x.detail)}</span></li>`).join('');
-    html += '</ul>';
+    if (extra.length) html += `<section class="v-sec"><h4 class="v-label">Also fixes</h4><div class="docs">${extra.join('')}</div></section>`;
+    // The nine double-checks as chips: green when passed, red when not, the full rule on hover.
+    const failed = new Set(e.check.ok ? [] : e.check.failures.map((x) => (x.rule === 'lines' ? 'line' : x.rule)));
+    const passed = CHECK_KEYS.length - CHECK_KEYS.filter(([k]) => failed.has(k)).length;
+    html += `<section class="v-sec"><div class="v-sec-head"><h4 class="v-label">Double-checks</h4><span class="ck-score ${e.check.ok ? 'ok' : 'bad'}">${e.check.ok ? `All ${CHECK_KEYS.length} passed` : `${e.check.failures.length} not passed yet`}</span></div>`;
+    html += `<ul class="chips" aria-label="${passed} of ${CHECK_KEYS.length} double-checks passed">${CHECK_KEYS.map(([k, short], i) => `<li class="chip ${failed.has(k) ? 'x' : ''}" title="${esc(CHECKS[i])}"><span aria-hidden="true">${failed.has(k) ? '✗' : '✓'}</span>${esc(short)}</li>`).join('')}</ul>`;
+    if (!e.check.ok) html += `<ul class="checks">${e.check.failures.map((x) => `<li class="fail"><span class="tk x">✗</span><span><span class="rule-name">${esc(CHECK_LABEL[x.rule] ?? x.rule)}</span>${esc(x.detail)}</span></li>`).join('')}</ul>`;
     // An entry that cites items another approval already settled: the reviewer can drop them.
-    if (e.status === 'open' && !e.check.ok && e.check.failures.some((x) => x.rule === 'cites' && /already been fixed/.test(x.detail))) html += `<div class="decide"><button class="btn" id="citeOpen">Remove the items already fixed</button><span class="meta-note">Another fix you approved already took care of some of these items. Removing them is a change you make; the double-checks run again.</span></div>`;
-    if (e.firstFailures) html += `<div class="first">The AI's first try didn't pass (${e.firstFailures.map((x) => esc(CHECK_LABEL[x.rule] ?? x.rule)).join(', ')}), so it corrected it.</div>`;
-    html += '</div>';
-    if (e.status === 'open') {
-      html += `<div class="decide"><div class="row"><button class="btn btn-ink" id="approve" ${e.check.ok ? '' : 'disabled'}>Approve fix</button><button class="btn btn-red" id="reject">Reject</button></div><textarea id="reason" rows="2" placeholder="Why are you rejecting it? The AI reads this next time."></textarea></div>`;
-    } else if (e.status === 'approved') {
-      html += `<div class="approved-stamp"><span class="stamp">Approved</span><span class="when">by ${esc(e.approvedBy === 'reviewer' || !e.approvedBy ? 'you' : e.approvedBy)} · ${esc(day(e.approvedAt))}</span></div>`;
-    }
-  } else if (e.status === 'covered') {
-    html += `<div class="approved-stamp"><span class="stamp">Done</span><span class="when">fixed together with another item (${esc(e.coveredBy)})</span></div>`;
-  } else if (e.status === 'open') {
-    html += `<div class="decide"><div class="row"><button class="btn btn-ink" id="proposeOne">${e.source === 'fee' ? 'Suggest the fee fix' : 'Ask the AI for a fix'}</button></div></div>`;
+    if (e.status === 'open' && !e.check.ok && e.check.failures.some((x) => x.rule === 'cites' && /already been fixed/.test(x.detail))) html += `<div class="fixit"><button class="btn" id="citeOpen">Remove the items already fixed</button><span class="meta-note">Another approved fix already covers them. The checks run again.</span></div>`;
+    if (e.firstFailures) html += `<p class="first">The AI's first try didn't pass (${e.firstFailures.map((x) => esc(CHECK_LABEL[x.rule] ?? x.rule)).join(', ')}), so it corrected it.</p>`;
+    html += '</section>';
   }
-  if (e.rejected?.length) html += `<div class="v-sec rejected"><span class="v-label">You rejected before</span>${e.rejected.map((r) => `<div>"${esc(r.fix.memo)}"${r.reason ? `: ${esc(r.reason)}` : ''}</div>`).join('')}</div>`;
+  if (e.rejected?.length) html += `<section class="v-sec rejected"><h4 class="v-label">You rejected before</h4>${e.rejected.map((r) => `<div>"${esc(r.fix.memo)}"${r.reason ? `: ${esc(r.reason)}` : ''}</div>`).join('')}</section>`;
+  html += '</div>';
+  // Pinned footer: the decision, always in reach.
+  if (e.fix && e.status === 'open') {
+    html += `<footer class="decide"><div class="row"><button class="btn btn-ink" id="approve" ${e.check.ok ? '' : 'disabled'}>Approve fix</button><button class="btn btn-red" id="reject">Reject</button>${e.check.ok ? '' : '<span class="decide-why">Fix the failed checks to approve</span>'}</div><textarea id="reason" rows="2" hidden placeholder="Why are you rejecting it? The AI reads this next time."></textarea></footer>`;
+  } else if (e.fix && e.status === 'approved') {
+    html += `<footer class="decide approved-stamp"><span class="stamp">Approved</span><span class="when">by ${esc(e.approvedBy === 'reviewer' || !e.approvedBy ? 'you' : e.approvedBy)} · ${esc(day(e.approvedAt))}</span></footer>`;
+  } else if (e.status === 'covered') {
+    html += `<footer class="decide approved-stamp"><span class="stamp">Done</span><span class="when">fixed together with another item (${esc(e.coveredBy)})</span></footer>`;
+  } else if (!e.fix && e.status === 'open') {
+    html += `<footer class="decide"><div class="row"><button class="btn btn-ink" id="proposeOne">${e.source === 'fee' ? 'Suggest the fee fix' : 'Ask the AI for a fix'}</button></div></footer>`;
+  }
   return html;
 }
 
