@@ -15,7 +15,7 @@ import { demoMonth } from './src/demo.mjs';
 import { paypalRows, ledgerRows, balanceRow, disputeRows } from './src/normalize.mjs';
 import { openClose, disputedIds, ruleFix, propose, approve, reject, edit, summary, journal } from './src/close.mjs';
 import { proposeWithClaude, narrateClose, MODEL } from './src/claude.mjs';
-import { memoData, memoHtml, checkNarrative } from './src/memo.mjs';
+import { memoData, memoHtml, memoCsvRows, checkNarrative } from './src/memo.mjs';
 import { fetchMonth, fetchBalances, fetchDisputes, paypalConfigured, probe, PayPalError } from './src/paypal.mjs';
 import { CATEGORIES } from './src/codes.mjs';
 import { loadRecording, recordedFix } from './src/recorded.mjs';
@@ -235,6 +235,12 @@ async function route(req, res) {
   if (req.method === 'GET' && p === '/api/audit.csv') {
     res.writeHead(200, { 'content-type': 'text/csv', 'content-disposition': `attachment; filename="closebook-${c.period}-audit.csv"` });
     return res.end(auditCsv(c));
+  }
+
+  // The month-end summary's figures as CSV: the same numbers as the page, no AI paragraph.
+  if (req.method === 'GET' && p === '/api/memo.csv') {
+    res.writeHead(200, { 'content-type': 'text/csv', 'content-disposition': `attachment; filename="closebook-${c.period}-month-end-summary.csv"` });
+    return res.end(csv(memoCsvRows(memoData(c, s.source))));
   }
 
   // The close memo: code-built numbers, plus a narrative from the AI only if every number and ID in

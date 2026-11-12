@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { demoMonth } from '../src/demo.mjs';
 import { paypalRows, ledgerRows, balanceRow } from '../src/normalize.mjs';
 import { openClose, stateOf, ruleFix, propose, approve, reject, edit } from '../src/close.mjs';
-import { memoData, memoHtml, checkNarrative } from '../src/memo.mjs';
+import { memoData, memoHtml, memoCsvRows, checkNarrative } from '../src/memo.mjs';
 import { startServer, browser } from './helpers.mjs';
 
 function closedDemo() {
@@ -42,6 +42,15 @@ test('every number in the memo comes from the close: tie-out, balances, categori
   assert.equal(d.approvals.length, d.counts.approved);
   const html = memoHtml(d);
   for (const s of ['October 2026: your books match PayPal', '-$897.44', '$2,412.50', 'Every PayPal payment is accounted for', 'Text that tried to give the AI instructions', 'look at the note', '@media print']) assert.ok(html.includes(s), s);
+  // The CSV carries the same figures as the page.
+  const csvRows = memoCsvRows(d);
+  const get = (sec, item) => csvRows.find((r) => r[0] === sec && r[1] === item);
+  assert.equal(get('The month', 'Difference before any fixes')[3], '-897.44');
+  assert.equal(get('The month', 'Difference now')[3], '0.00');
+  assert.equal(get('Who suggested what', 'Approved standard fixes (PayPal fees)')[2], 23);
+  assert.equal(csvRows.filter((r) => r[0] === 'Approved fixes').length, d.approvals.length);
+  assert.equal(csvRows.filter((r) => r[0] === 'Fixes by type').reduce((a, r) => a + Math.round(Number(r[3]) * 100), 0), d.tieout.adjustments);
+  assert.ok(html.includes('href="/api/memo.csv"'));
 });
 
 test('a narrative is kept only if every number and ID in it is from the summary', () => {
